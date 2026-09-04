@@ -1,7 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-const budgets = { ".js": 573 * 1024, ".css": 84 * 1024 };
+const budgets = { ".js": 585 * 1024, ".css": 85 * 1024 };
 const entryJavaScriptBudget = 525 * 1024;
 const files = await readdir("dist/assets");
 

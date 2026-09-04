@@ -12,6 +12,7 @@ import { IconButton } from "./IconButton";
 import { isHermesReady, isLocalHermesUrl } from "./hermesConnectionUi";
 import { MessageContent, type MessageMentions } from "./MessageContent";
 import { TextareaControl } from "./TextareaControl";
+import { SelectControl } from "./SelectControl";
 import { useI18n, type TranslationValues } from "./i18n";
 import { loadPreferences, savePreferences, type AppPreferences } from "./preferences";
 import type { SettingsSection } from "./SettingsPanel";
@@ -94,6 +95,9 @@ function attachmentWireText(text: string, attachments: TextAttachment[], fallbac
 
 export interface Bot {
   name: string;
+  gatewayId?: string;
+  gatewayLabel?: string;
+  profile?: string;
   system: boolean;
   displayName?: string;
   description?: string;
@@ -103,7 +107,7 @@ export interface Bot {
 }
 export interface BotAvatarValue { shape?: string; color?: string; image?: string }
 export interface AvatarPet { slug: string; displayName: string; spritesheetUrl?: string; installed?: boolean; curated?: boolean }
-export interface BotCreateInput { name: string; title?: string; description?: string; avatar?: BotAvatarValue }
+export interface BotCreateInput { name: string; title?: string; description?: string; avatar?: BotAvatarValue; gatewayId?: string }
 export interface BotArchiveDownload { blob: Blob; filename: string }
 export type AccessRole = "admin" | "operator" | "viewer";
 export interface HermesMachine { id: string; name: string; url?: string; kind: "local" | "peer"; status: "connected" | "configured" | "needs_auth" }
@@ -215,6 +219,11 @@ export interface BotsApi {
   getAccess?(): Promise<{ role: AccessRole }>;
   listMachines?(): Promise<HermesMachine[]>;
   getHermesConnection?(): Promise<HermesConnection>;
+  listGateways?(): Promise<import("./gateways").GatewayList>;
+  addGateway?(input: { label: string; baseUrl: string }): Promise<{ id: string }>;
+  removeGateway?(id: string): Promise<unknown>;
+  setGatewayRelay?(id: string, relay: boolean): Promise<unknown>;
+  forGateway?(id: string): BotsApi;
   getDiagnostics?(): Promise<AppDiagnostics>;
   getDiagnosticsReport?(): Promise<DiagnosticsReport>;
   testHermesConnection?(input: { baseUrl: string; token?: string }): Promise<HermesConnectionProbe>;
@@ -422,6 +431,18 @@ export function App({ api }: { api: BotsApi }) {
   const [accessLoading, setAccessLoading] = useState(Boolean(api.getAccess));
   const [accessError, setAccessError] = useState("");
   const [machines, setMachines] = useState<HermesMachine[]>([]);
+  const [newBotGateway, setNewBotGateway] = useState("primary");
+  const [availableGateways, setAvailableGateways] = useState<import("./gateways").GatewayView[]>([]);
+  useEffect(() => {
+    if (!creating || !api.listGateways) return;
+    let active = true;
+    api.listGateways().then((result) => {
+      if (!active) return;
+      setAvailableGateways(result.gateways);
+      setNewBotGateway((current) => result.gateways.some((gateway) => gateway.id === current && gateway.hasToken) ? current : result.gateways.find((gateway) => gateway.hasToken)?.id || "primary");
+    }).catch((cause) => { if (active) setCreateError(String(cause)); });
+    return () => { active = false; };
+  }, [api, creating]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSection>("general");
   const [firstRun, setFirstRun] = useState(false);
@@ -565,7 +586,11 @@ export function App({ api }: { api: BotsApi }) {
       setDiagnostics(result);
       const needsAuthentication = result.authentication.status === "error" && result.authentication.detail === "Hermes session token is required";
       const unavailableOnFirstLaunch = firstLaunch.current && result.hermes.status === "error" && isLocalHermesUrl(result.hermes.baseUrl);
-      if (needsAuthentication || unavailableOnFirstLaunch) setFirstRun(true);
+      if (needsAuthentication || unavailableOnFirstLaunch) {
+        // An unavailable primary must not hide Bots on a healthy additional gateway.
+        const available = await api.listBots().catch(() => []);
+        setFirstRun(!available.some((bot) => bot.gatewayId && bot.gatewayId !== "primary"));
+      }
       if (isHermesReady(result)) {
         firstLaunch.current = false;
         window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "true");
@@ -1151,6 +1176,7 @@ export function App({ api }: { api: BotsApi }) {
       const description = newDescription.trim();
       const bot = await api.createBot({
         name: newName.trim().toLocaleLowerCase(locale),
+        ...(api.listGateways ? { gatewayId: newBotGateway } : {}),
         ...(title ? { title } : {}),
         ...(description ? { description } : {}),
         avatar: newAvatar
@@ -1240,10 +1266,12 @@ export function App({ api }: { api: BotsApi }) {
       ]);
       if (nextDiagnostics) {
         setDiagnostics(nextDiagnostics);
-        if (!isHermesReady(nextDiagnostics)) throw new Error("The connection could not be completed. Retry or open the setup guide below.");
+        if (!isHermesReady(nextDiagnostics) && !nextBots.length) throw new Error("The connection could not be completed. Retry or open the setup guide below.");
       }
-      window.localStorage.removeItem(LAST_THREADS_STORAGE_KEY);
-      window.localStorage.removeItem(LAST_ACTIVE_STORAGE_KEY);
+      if (!api.listGateways) {
+        window.localStorage.removeItem(LAST_THREADS_STORAGE_KEY);
+        window.localStorage.removeItem(LAST_ACTIVE_STORAGE_KEY);
+      }
       setBots(nextBots);
       setMachines(nextMachines);
       setGroups(nextGroups);
@@ -1451,7 +1479,7 @@ export function App({ api }: { api: BotsApi }) {
             <div className="thread-section-head"><h2 id="bots-heading">{t("Bots")}</h2><span>{visibleBots.length}</span></div>
             <nav className="thread-list" aria-label={t("Hermes Bots")}>
               {visibleBots.map((bot) => <div className="bot-thread-block" key={bot.name}>
-                <button type="button" className={`thread-row ${selected === bot.name ? "active" : ""}`} aria-label={t("Open Bot {name}", { name: getBotDisplayName(bot, bot.name) })} aria-current={selected === bot.name ? "page" : undefined} onClick={() => selectBot(bot.name)}><BotAvatar bot={bot} size={38} /><span className="thread-copy"><span className="thread-line"><strong>{getBotDisplayName(bot, bot.name)}</strong>{bot.system && <em>Hermes</em>}</span><small>{botPreview(bot)}</small></span></button>
+                <button type="button" className={`thread-row ${selected === bot.name ? "active" : ""}`} aria-label={t("Open Bot {name}", { name: `${getBotDisplayName(bot, bot.name)}${bot.gatewayLabel ? ` · ${bot.gatewayLabel}` : ""}` })} aria-current={selected === bot.name ? "page" : undefined} onClick={() => selectBot(bot.name)}><BotAvatar bot={bot} size={38} /><span className="thread-copy"><span className="thread-line"><strong>{getBotDisplayName(bot, bot.name)}</strong>{bot.system && <em>Hermes</em>}</span><small>{bot.gatewayLabel && <span className="bot-gateway-label">{bot.gatewayLabel} · </span>}{botPreview(bot)}</small></span></button>
               </div>)}
             </nav>
             {botsLoading && <div className="sidebar-loading" aria-live="polite"><span />{t("Loading Bots…")}</div>}
@@ -1584,6 +1612,7 @@ export function App({ api }: { api: BotsApi }) {
       {creating && <DialogShell as="form" className="bot-create-modal" ariaLabel={t("Create a Bot")} onSubmit={submitNewBot} onClose={() => setCreating(false)}>
         <div className="modal-heading"><small>{t("NEW MISSION")}</small><h2>{t("Create a mission-focused Bot")}</h2><p>{t("Start with what this Bot should accomplish. ByBots prepares the technical profile name for you.")}</p></div>
         <div className="create-bot-fields">
+          {availableGateways.length > 1 && <FormField label={t("Gateway")}><SelectControl value={newBotGateway} onChange={(event) => setNewBotGateway(event.target.value)}>{availableGateways.map((gateway) => <option key={gateway.id} value={gateway.id} disabled={!gateway.hasToken}>{gateway.label}</option>)}</SelectControl></FormField>}
           <FormField label={t("Visible name")}><input value={newTitle} onChange={(event) => { const title = event.target.value; setNewTitle(title); if (!newNameEdited) setNewName(technicalBotName(title || newDescription)); }} placeholder={t("e.g. Inbox Triage")} maxLength={120} required /></FormField>
           <FormField className="create-description" label={t("Mission")}><TextareaControl resize="vertical" value={newDescription} onChange={(event) => { const description = event.target.value; setNewDescription(description); if (!newNameEdited && !newTitle.trim()) setNewName(technicalBotName(description)); }} placeholder={t("What result should this Bot deliver?")} maxLength={600} required /></FormField>
           <FormField label={t("Technical name")} help={t("Generated automatically, editable if needed.")}><input data-dialog-initial-focus value={newName} onChange={(event) => { setNewNameEdited(true); setNewName(event.target.value); }} placeholder={t("e.g. inbox-triage")} pattern="[A-Za-z0-9][A-Za-z0-9-]{1,63}" required /></FormField>
@@ -1593,7 +1622,7 @@ export function App({ api }: { api: BotsApi }) {
         <DialogActions><button type="button" onClick={() => setCreating(false)}>{t("Cancel")}</button><button className="primary" type="submit" disabled={!newTitle.trim() || !newDescription.trim() || !newName.trim()}>{t("Create Bot")}</button></DialogActions>
       </DialogShell>}
 
-      {creatingGroup && <DialogShell as="form" ariaLabel={t("Create a group")} onSubmit={submitNewGroup} onClose={() => setCreatingGroup(false)}><div><small>{t("NEW CONVERSATION")}</small><h2>{t("Create a group")}</h2><p>{t("Bring several Bots into one thread.")}</p></div><FormField label={t("Group name")}><input value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder={t("e.g. Leadership")} required /></FormField><div className="member-picker" role="group" aria-label={t("Group Bots")}>{bots.filter((bot) => !bot.system).map((bot) => <label key={bot.name} className={newGroupMembers.includes(bot.name) ? "checked" : ""}><input type="checkbox" checked={newGroupMembers.includes(bot.name)} onChange={() => toggleGroupMember(bot.name)} /><BotAvatar bot={bot} size={28} /><span className="member-copy"><strong>{getBotDisplayName(bot, bot.name)}</strong><small>{bot.description || t("Hermes profile access")}</small></span></label>)}</div>{newGroupMembers.length > 0 && <div className="group-access-note" role="note"><ShieldCheck size={18} /><span><strong>{t("Accesses are combined in this group")}</strong><small>{t("Each Bot keeps its own tools and integrations. Review sensitive data before sending it to the group.")}</small></span></div>}{newGroupMembers.length > 0 && <Suspense fallback={null}><GroupAccessPreview api={api} bots={bots} members={newGroupMembers} inline /></Suspense>}<p className="modal-hint">{t("{count}/6 Bots selected. Minimum 2.", { count: newGroupMembers.length })}</p><DialogActions><button type="button" onClick={() => setCreatingGroup(false)}>{t("Cancel")}</button><button className="primary" type="submit" disabled={newGroupMembers.length < 2 || newGroupMembers.length > 6 || !newGroupName.trim()}>{t("Create group")}</button></DialogActions></DialogShell>}
+      {creatingGroup && <DialogShell as="form" ariaLabel={t("Create a group")} onSubmit={submitNewGroup} onClose={() => setCreatingGroup(false)}><div><small>{t("NEW CONVERSATION")}</small><h2>{t("Create a group")}</h2><p>{t("Bring several Bots into one thread.")}</p>{bots.some((bot) => bot.gatewayId && bot.gatewayId !== "primary") && <p>{t("Groups use one gateway. For cross-gateway exchanges, use Bot Chat and message_agent.")}</p>}</div><FormField label={t("Group name")}><input value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder={t("e.g. Leadership")} required /></FormField><div className="member-picker" role="group" aria-label={t("Group Bots")}>{bots.filter((bot) => !bot.system).map((bot) => <label key={bot.name} className={newGroupMembers.includes(bot.name) ? "checked" : ""}><input type="checkbox" disabled={newGroupMembers.length > 0 && !newGroupMembers.includes(bot.name) && (bots.find((member) => member.name === newGroupMembers[0])?.gatewayId || "primary") !== (bot.gatewayId || "primary")} checked={newGroupMembers.includes(bot.name)} onChange={() => toggleGroupMember(bot.name)} /><BotAvatar bot={bot} size={28} /><span className="member-copy"><strong>{getBotDisplayName(bot, bot.name)}</strong><small>{bot.gatewayLabel || bot.description || t("Hermes profile access")}</small></span></label>)}</div>{newGroupMembers.length > 0 && <div className="group-access-note" role="note"><ShieldCheck size={18} /><span><strong>{t("Accesses are combined in this group")}</strong><small>{t("Each Bot keeps its own tools and integrations. Review sensitive data before sending it to the group.")}</small></span></div>}{newGroupMembers.length > 0 && <Suspense fallback={null}><GroupAccessPreview api={api} bots={bots} members={newGroupMembers} inline /></Suspense>}<p className="modal-hint">{t("{count}/6 Bots selected. Minimum 2.", { count: newGroupMembers.length })}</p><DialogActions><button type="button" onClick={() => setCreatingGroup(false)}>{t("Cancel")}</button><button className="primary" type="submit" disabled={newGroupMembers.length < 2 || newGroupMembers.length > 6 || !newGroupName.trim()}>{t("Create group")}</button></DialogActions></DialogShell>}
       {settingsOpen && <Suspense fallback={null}><SettingsPanel api={api} bots={bots} machines={machines} role={accessRole} localHermesUnavailable={localHermesUnavailable} initialSection={settingsInitialSection} preferences={preferences} onPreferencesChange={setPreferences} onBotImported={handleBotImported} onGatewayChanged={handleGatewayChanged} onClose={closeSettings} /></Suspense>}
       {firstRun && <FirstRunPanel api={api} role={accessRole} localHermesUnavailable={localHermesUnavailable} onConnected={handleGatewayChanged} />}
     </main>

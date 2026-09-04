@@ -4,6 +4,10 @@ import { api, parseEventStreamChunk } from "../src/api";
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("web API client", () => {
+  it("reports missing multi-gateway support instead of returning an invalid list to React", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
+    await expect(api.listGateways!()).rejects.toThrow("Gateway management is unavailable");
+  });
   it("does not send a JSON content type when deleting a Bot without a body", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetcher);

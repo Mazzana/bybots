@@ -13,6 +13,11 @@ browser. Otherwise, an administrator can enter the session token supplied by
 the gateway owner. ByBots verifies health and profile access before saving the
 new connection.
 
+The development branch also offers **Settings → Hermes → Multiple gateways**:
+keep additional connections, choose a gateway when creating a Bot, and opt in
+to native cross-gateway Bot relay. See the [multi-gateway guide](MULTI-GATEWAY.md)
+for setup, trust boundaries and preview limitations.
+
 ## Bots and conversations
 
 The sidebar lists Bots supplied by Hermes. Select a Bot to reopen its last used

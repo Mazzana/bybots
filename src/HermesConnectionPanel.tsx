@@ -11,6 +11,7 @@ interface HermesConnectionPanelProps {
   role: AccessRole;
   initialLocalUnavailable?: boolean;
   autoReconnect?: boolean;
+  additional?: boolean;
   onConnected(): void | Promise<void>;
 }
 
@@ -23,7 +24,7 @@ function secureTransport(value: string) {
   }
 }
 
-export function HermesConnectionPanel({ api, role, initialLocalUnavailable = false, autoReconnect = false, onConnected }: HermesConnectionPanelProps) {
+export function HermesConnectionPanel({ api, role, initialLocalUnavailable = false, autoReconnect = false, additional = false, onConnected }: HermesConnectionPanelProps) {
   const { t, formatError } = useI18n();
   const [connection, setConnection] = useState<HermesConnection | null>(null);
   const [target, setTarget] = useState<"local" | "remote">("local");
@@ -94,12 +95,12 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
         if (!active) return;
         setConnection(next);
         setBaseUrl(next.baseUrl);
-        setTarget(next.baseUrl === next.defaultBaseUrl ? "local" : "remote");
+        setTarget(!additional && next.baseUrl === next.defaultBaseUrl ? "local" : "remote");
       })
       .catch((cause) => active && setError(formatError(cause)))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [api, formatError]);
+  }, [api, additional, formatError]);
 
   useEffect(() => {
     const candidate = baseUrl.trim();
@@ -258,14 +259,14 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
     {connection && <div className="settings-status"><span className={`machine-dot ${connection.version && !connection.requiresReauthentication ? "connected" : ""}`} /><span><strong>{t("Active gateway")}</strong><small>{connection.baseUrl}{connection.version ? ` · Hermes ${connection.version}` : ""}</small></span><em>{connection.requiresReauthentication ? t("Sign in again") : connection.authMode === "oauth" ? t("OAuth") : connection.source === "saved" ? t("Saved") : t("Default")}</em></div>}
     {connection?.requiresReauthentication && <FeedbackState tone="note" icon={<ShieldAlert size={18} />} title={t("Hermes session expired")}>{t("Sign in again to restore this remote gateway connection.")}</FeedbackState>}
 
-    <div className="gateway-options" role="group" aria-label={t("Connection choices")}>
+    {!additional && <div className="gateway-options" role="group" aria-label={t("Connection choices")}>
       <button type="button" aria-pressed={target === "local"} disabled={!canManage || Boolean(busy)} onClick={() => { setTarget("local"); void reset(); }}>
         <Server size={18} /><span><strong>{busy === "reset" ? t("Connecting…") : t("Local Hermes")}</strong><small>{localBaseUrl}</small></span>
       </button>
       <button type="button" aria-pressed={target === "remote"} disabled={!canManage || Boolean(busy)} onClick={() => { setTarget("remote"); setLocalUnavailable(false); if (connection && baseUrl === connection.defaultBaseUrl) setBaseUrl(""); setError(""); setSuccess(""); }}>
         <LockKeyhole size={18} /><span><strong>{t("Remote Hermes")}</strong><small>{t("HTTPS or trusted private network")}</small></span>
       </button>
-    </div>
+    </div>}
 
     {target === "local" ? showLocalUnavailable ? <div className="local-gateway-error" role="alert">
       <ShieldAlert size={19} /><div><strong>{t("Local Hermes is not available")}</strong><p>{t("ByBots could not reach Hermes at {url}. Start Hermes on this computer, then try again. The local session is detected automatically; no URL or token is required.", { url: localBaseUrl })}</p><button type="button" disabled={!canManage || Boolean(busy)} onClick={() => void reset()}><RotateCcw size={15} />{busy === "reset" ? t("Connecting…") : t("Retry local connection")}</button></div>

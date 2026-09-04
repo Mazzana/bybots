@@ -1924,6 +1924,21 @@ button {
   backdrop-filter: none;
 }
 .composer:focus-within { border-color: rgb(10 132 255 / 66%); box-shadow: 0 0 0 3px rgb(10 132 255 / 13%); }
+.multi-gateway-panel, .multi-gateway-list { display: grid; gap: 12px; min-width: 0; }
+.multi-gateway-panel { margin-top: 24px; font-size: 12px; line-height: 1.5; }
+.multi-gateway-panel :is(h3, h4) { font-size: 13px; }
+.multi-gateway-panel .surface-card { padding: 14px; min-width: 0; }
+.multi-gateway-heading { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.multi-gateway-panel :is(h3, h4, p) { margin: 0 0 10px; }
+.gateway-address, .relay-activity li { overflow-wrap: anywhere; }
+.relay-activity { padding: 0; list-style: none; display: grid; gap: 10px; }
+.relay-activity li { display: grid; gap: 4px; }
+.multi-gateway-panel button { min-height: 36px; font-size: inherit; }
+.bot-gateway-label { opacity: .8; }
+@media (max-width: 640px) {
+  .multi-gateway-panel button { min-height: 44px; }
+  .multi-gateway-panel input:not([role="switch"]) { font-size: 16px; }
+}
 .send-button, :is(.modal-actions, .gateway-actions, .diagnostics-export-actions, .settings-footer) .primary, .transfer-card > button {
   border: 1px solid rgb(83 174 255 / 72%);
   background: var(--mac-accent);

@@ -74,7 +74,8 @@ export interface HermesConnectionStore {
   clear(): Promise<void>;
 }
 
-interface HermesRuntime {
+export interface HermesRuntime {
+  gateway?: HermesGateway;
   hermes: HermesService;
   chat: ChatService;
   groups: GroupService;
@@ -90,7 +91,7 @@ interface HermesConnectionManagerOptions {
   resolveLocalToken?: LocalTokenResolver;
 }
 
-function defaultConfigFile() {
+export function defaultConfigFile() {
   if (process.env.BYFINITY_CONFIG_FILE?.trim()) return process.env.BYFINITY_CONFIG_FILE.trim();
   const root = process.platform === "win32" && process.env.APPDATA
     ? join(process.env.APPDATA, "Byfinity Bots")
@@ -184,6 +185,7 @@ function createDefaultRuntime(connection: HermesConnectionCredentials): HermesRu
   const gateway = connection.token ? new HermesGateway({ baseUrl: connection.baseUrl, token: connection.token, authMode }) : undefined;
   const unavailable = async (..._args: unknown[]): Promise<never> => { throw new Error("Hermes session token is required"); };
   return {
+    gateway,
     hermes: new HermesClient({ baseUrl: connection.baseUrl, authMode, ...(connection.token ? { sessionToken: connection.token } : {}), ...(gateway ? { gateway } : {}) }),
     chat: gateway ? new BotChatService(gateway) : {
       getConversation: unavailable, sendMessage: unavailable, listThreads: unavailable, createThread: unavailable,
@@ -296,6 +298,10 @@ export class HermesConnectionManager implements HermesConnectionService {
 
   async getConnection() {
     return this.view();
+  }
+
+  get relayGateway() {
+    return this.closed || this.requiresReauthentication ? undefined : this.currentRuntime.gateway;
   }
 
   async testConnection(input: HermesConnectionInput): Promise<HermesConnectionProbe> {

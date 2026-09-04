@@ -54,6 +54,23 @@ function attachmentFilename(response: Response, fallback: string) {
 }
 
 export const api: BotsApi = {
+  async listGateways() {
+    const result = await request<import("./gateways").GatewayList>("/api/hermes/connection/gateways");
+    if (!Array.isArray(result?.gateways) || !Array.isArray(result?.activity)) throw new Error("Gateway management is unavailable on this Bridge.");
+    return result;
+  },
+  addGateway(input) { return request("/api/hermes/connection/gateways", { method: "POST", body: JSON.stringify(input) }); },
+  removeGateway(id) { return request(`/api/hermes/connection/gateways/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  setGatewayRelay(id, relay) { return request(`/api/hermes/connection/gateways/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ relay }) }); },
+  forGateway(id) {
+    const path = `/api/hermes/connection/gateways/${encodeURIComponent(id)}`;
+    return { ...api,
+      async getHermesConnection() { return (await request<{ connection: import("./App").HermesConnection }>(path)).connection; },
+      async updateHermesConnection(input) { return (await request<{ connection: import("./App").HermesConnection }>(path, { method: "PUT", body: JSON.stringify(input) })).connection; },
+      async testHermesConnection(input) { return (await request<{ probe: import("./App").HermesConnectionProbe }>(`${path}/test`, { method: "POST", body: JSON.stringify(input) })).probe; },
+      startHermesOAuth(input) { return request(`${path}/oauth/start`, { method: "POST", body: JSON.stringify({ ...input, appOrigin: window.location.origin }) }); }
+    };
+  },
   getAccess() { return request<{ role: AccessRole }>("/api/access"); },
   getDiagnostics() { return request<import("./App").AppDiagnostics>("/api/diagnostics"); },
   getDiagnosticsReport() { return request<import("./App").DiagnosticsReport>("/api/diagnostics/report"); },

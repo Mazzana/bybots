@@ -2,7 +2,9 @@ import { resolve } from "node:path";
 import { isIP } from "node:net";
 import type { FastifyInstance } from "fastify";
 import { createApp } from "./app";
-import { FileHermesConnectionStore, HermesConnectionManager } from "./hermes-connection";
+import { defaultConfigFile, FileHermesConnectionStore, HermesConnectionManager } from "./hermes-connection";
+import { FileGatewayRegistry } from "./gateway-registry";
+import { MultiGateway } from "./multi-gateway";
 import { resolveLocalHermesSessionToken } from "./hermes-local-token";
 import packageJson from "../package.json";
 
@@ -61,22 +63,26 @@ export async function startBridge(options: BridgeRuntimeOptions = {}): Promise<B
   });
   await connectionManager.initialize();
 
+  const configPath = options.configFile ?? defaultConfigFile();
+  const gateways = new MultiGateway(connectionManager, new FileGatewayRegistry(`${configPath}.gateways.json`), configPath);
+  try { await gateways.initialize(); } catch (cause) { gateways.close(); throw cause; }
   const bridge = createApp({
-    hermes: connectionManager.hermes,
-    chat: connectionManager.chat,
-    groups: connectionManager.groups,
-    connection: connectionManager,
+    hermes: gateways.hermes,
+    chat: gateways.chat,
+    groups: gateways.groups,
+    connection: gateways,
+    gateways,
     accessTokens,
     trustedLocalHostnames: trustedHostnames,
     bridgeVersion: packageJson.version,
     staticDir: options.staticDir ?? resolve(process.cwd(), "dist")
   });
-  bridge.addHook("onClose", async () => connectionManager.close());
+  bridge.addHook("onClose", async () => gateways.close());
 
   try {
     await bridge.listen({ host, port });
   } catch (cause) {
-    connectionManager.close();
+    gateways.close();
     throw cause;
   }
 

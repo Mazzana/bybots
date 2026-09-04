@@ -93,7 +93,7 @@ export class HermesGateway {
     return response.json();
   }
 
-  async request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  async request<T>(method: string, params: Record<string, unknown> = {}, timeoutMs = this.requestTimeoutMs): Promise<T> {
     await this.connect();
     if (this.pending.size >= this.maxPendingRequests) {
       throw new HermesGatewayError("Hermes gateway has too many pending requests", { reason: "target_busy", retryable: true });
@@ -102,8 +102,8 @@ export class HermesGateway {
     const response = new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (!this.pending.delete(id)) return;
-        reject(new HermesGatewayError(`Hermes request timed out after ${this.requestTimeoutMs} ms`, { reason: "delivery_timeout", retryable: true }));
-      }, this.requestTimeoutMs);
+        reject(new HermesGatewayError(`Hermes request timed out after ${timeoutMs} ms`, { reason: "delivery_timeout", retryable: true }));
+      }, timeoutMs);
       timer.unref?.();
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
       try {

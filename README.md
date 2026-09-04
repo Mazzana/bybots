@@ -8,6 +8,10 @@
 team.**
 
 ByBots turns a Hermes gateway into an approachable Web and desktop product.
+
+**In development:** connect several Hermes gateways in one workspace and let
+their Bots communicate through Hermes' native relay. Connections remain isolated
+and sharing is opt-in. See the [multi-gateway preview guide](docs/MULTI-GATEWAY.md).
 Create specialized Bots around real missions, return to the right conversation,
 coordinate several Bots in one room, schedule recurring work, and understand
 model usage from a single interface.

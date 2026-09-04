@@ -5,6 +5,7 @@ import Fastify from "fastify";
 import { z } from "zod";
 import type { AvatarPet, AvatarPetSprite, BotArchive, BotConfiguration, BotCreateInput, BotRoutine, BotRoutineInput, BotRoutineRun, BotSummary, BotUpdateInput, BotUpdateResult, BotUsage, HermesMachine, McpServerTest } from "./hermes-client";
 import { isSecureHermesUrl, type HermesConnectionService } from "./hermes-connection";
+import type { MultiGateway } from "./multi-gateway";
 import { failureHttpStatus, hermesFailureFromUnknown } from "./hermes-failure";
 
 const MAX_BOT_ARCHIVE_BYTES = 25 * 1024 * 1024;
@@ -96,7 +97,7 @@ export interface GroupService {
 
 export type AccessRole = "admin" | "operator" | "viewer";
 
-export function createApp({ hermes, chat, groups, connection, remoteToken, accessTokens, staticDir, bridgeVersion = "development", trustedLocalHostnames = DEFAULT_TRUSTED_LOCAL_HOSTNAMES, sseLimits }: { hermes: HermesService; chat?: ChatService; groups?: GroupService; connection?: HermesConnectionService; remoteToken?: string; accessTokens?: Partial<Record<AccessRole, string>>; staticDir?: string; bridgeVersion?: string; trustedLocalHostnames?: string[]; sseLimits?: SseLimits }) {
+export function createApp({ hermes, chat, groups, connection, gateways, remoteToken, accessTokens, staticDir, bridgeVersion = "development", trustedLocalHostnames = DEFAULT_TRUSTED_LOCAL_HOSTNAMES, sseLimits }: { hermes: HermesService; chat?: ChatService; groups?: GroupService; connection?: HermesConnectionService; gateways?: MultiGateway; remoteToken?: string; accessTokens?: Partial<Record<AccessRole, string>>; staticDir?: string; bridgeVersion?: string; trustedLocalHostnames?: string[]; sseLimits?: SseLimits }) {
   const app = Fastify({ logger: false });
   const requestRoles = new WeakMap<object, AccessRole>();
   const trustedHosts = new Set(trustedLocalHostnames.map(normalizeHostname));
@@ -190,6 +191,23 @@ export function createApp({ hermes, chat, groups, connection, remoteToken, acces
 
   app.get("/api/health", async () => ({ ok: true, apiVersion: BRIDGE_API_VERSION }));
   app.get("/api/access", async (request) => ({ role: requestRoles.get(request) || "admin" }));
+  if (gateways) {
+    const gatewayId = (params: unknown) => z.object({ id: z.string().regex(/^(primary|gw-[a-f0-9]{12})$/) }).parse(params).id;
+    const credentials = z.object({ baseUrl: z.string().trim().min(1).max(2048), token: z.string().max(4096).optional() }).strict();
+    // All management routes intentionally share the existing administrator-only prefix.
+    app.get("/api/hermes/connection/gateways", async () => ({ gateways: await gateways.listGateways(), activity: gateways.relay.activity }));
+    app.post("/api/hermes/connection/gateways", async (request, reply) => reply.code(201).send(await gateways.addGateway(z.object({ label: z.string().trim().min(1).max(48), baseUrl: z.string().trim().min(1).max(2048) }).strict().parse(request.body))));
+    app.get("/api/hermes/connection/gateways/:id", async (request) => ({ connection: await gateways.getConnection(gatewayId(request.params)) }));
+    app.put("/api/hermes/connection/gateways/:id", async (request) => ({ connection: await gateways.updateConnection(credentials.parse(request.body), gatewayId(request.params)) }));
+    app.post("/api/hermes/connection/gateways/:id/test", async (request) => ({ probe: await gateways.testConnection(credentials.parse(request.body), gatewayId(request.params)) }));
+    app.patch("/api/hermes/connection/gateways/:id", async (request) => { await gateways.setRelay(gatewayId(request.params), z.object({ relay: z.boolean() }).strict().parse(request.body).relay); return { ok: true }; });
+    app.delete("/api/hermes/connection/gateways/:id", async (request) => { await gateways.removeGateway(gatewayId(request.params)); return { ok: true }; });
+    app.post("/api/hermes/connection/gateways/:id/oauth/start", async (request) => {
+      const input = z.object({ baseUrl: z.string().trim().min(1).max(2048), appOrigin: z.string().url().max(2048).optional() }).strict().parse(request.body);
+      const origin = input.appOrigin || (typeof request.headers.origin === "string" ? request.headers.origin : `${request.protocol}://${request.headers.host || "127.0.0.1"}`);
+      return gateways.startOAuth(input.baseUrl, new URL("/api/hermes/connection/oauth/callback", origin).toString(), gatewayId(request.params));
+    });
+  }
   if (connection) {
     const connectionInput = z.object({
       baseUrl: z.string().trim().min(1).max(2_048),
@@ -313,6 +331,7 @@ export function createApp({ hermes, chat, groups, connection, remoteToken, acces
   app.post("/api/bots", async (request, reply) => {
     const input = z.object({
       name: z.string().trim().min(2).max(64).regex(/^[a-z0-9][a-z0-9-]*$/i),
+      gatewayId: z.string().regex(/^(primary|gw-[a-f0-9]{12})$/).optional(),
       title: z.string().trim().max(120).optional(),
       description: z.string().trim().max(10_000).optional(),
       avatar: z.object({
@@ -532,7 +551,7 @@ export function createApp({ hermes, chat, groups, connection, remoteToken, acces
     app.post("/api/groups", async (request, reply) => {
       const input = z.object({
         name: z.string().trim().min(2).max(80),
-        members: z.array(z.string().trim().min(1).max(64)).min(2).max(6)
+        members: z.array(z.string().trim().min(1).max(128)).min(2).max(6)
       }).parse(request.body);
       const group = await groups.createGroup(input.name, input.members);
       return reply.code(201).send({ group });

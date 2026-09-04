@@ -10,6 +10,7 @@ import { DialogShell } from "./Dialog";
 import { FeedbackState } from "./FeedbackState";
 import { FormField } from "./FormField";
 import { HermesConnectionPanel } from "./HermesConnectionPanel";
+import { GatewaysPanel } from "./GatewaysPanel";
 import { IconButton } from "./IconButton";
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from "./i18n";
 import { DEFAULT_PREFERENCES, type AppPreferences } from "./preferences";
@@ -184,6 +185,7 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
             <div className="settings-section-heading"><h3 id="settings-hermes">Hermes</h3><p>{t("Choose the Hermes gateway that orchestrates this application.")}</p></div>
             <DiagnosticsPanel api={api} />
             <HermesConnectionPanel api={api} role={role} initialLocalUnavailable={localHermesUnavailable} onConnected={onGatewayChanged} />
+            <GatewaysPanel api={api} role={role} onChanged={onGatewayChanged} />
             {machines.length > 0 && <><h4 className="settings-subheading">{t("Connected machines")}</h4><div className="machine-list settings-machines">{machines.map((machine) => <article key={machine.id}><span className={`machine-dot ${machine.status}`} /><div><strong>{t(machine.name)}</strong><small>{machine.kind === "local" ? t("Local runtime") : machine.url}</small></div><em>{machine.status === "connected" ? t("Connected") : machine.status === "needs_auth" ? t("Key required") : t("Configured")}</em></article>)}</div></>}
             {machines.length <= 1 && <p className="settings-help">{t("Remote peers are securely configured from Hermes with {command}.", { command: "hermes peer add" })}</p>}
           </section>}

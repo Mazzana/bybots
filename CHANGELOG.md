@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file. The project
 
 ### Added
 
+- Multi-gateway preview: keep the primary Hermes connection and up to eight
+  additional gateways, each with independent session-token or native OAuth
+  authentication. Bots share one list with gateway labels and scoped profile
+  IDs; new Bots can be created on a selected gateway. Existing primary IDs stay
+  unchanged. Administrators explicitly enable native Bot relay on each trusted
+  gateway; ByBots synchronizes rosters, forwards `message_agent` envelopes and
+  returns replies using Hermes' four `bot_relay.*` methods. The bounded activity
+  list contains routing/status metadata, not message content. Group rooms remain
+  gateway-local. See the [multi-gateway guide](docs/MULTI-GATEWAY.md) for trust,
+  availability and restart limitations. This work is unreleased.
 - Manual desktop update checks in Settings → About. Electron checks the fixed
   public GitHub repository for its latest stable release on demand, compares
   versions without proposing a downgrade, and links to the official release.

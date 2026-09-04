@@ -70,3 +70,16 @@ JavaScript rises to 585,932 bytes; the entry moves from 354,798 to 355,713 bytes
 including English/French status strings. CSS remains 85,701 bytes. The total
 budget moves from 570 to 573 KiB for this 2.4 KB addition; the entry and CSS
 limits are unchanged. No network request is made until the user clicks Check.
+
+## Multi-gateway preview measurement
+
+The native relay, connection registry and credential management run in the
+Bridge, outside the browser bundle. Gateway management reuses the connection
+form, fields, switches and feedback components in the existing lazy Settings
+chunk. No UI dependency was added. Total JavaScript rises from 585,932 to
+596,282 bytes (about 10 KB, including both languages and scoped API helpers).
+CSS moves from 85,701 to 86,475 bytes, including mobile input sizes and 44px
+buttons. The reviewed total budgets move to 585 KiB JavaScript and 85 KiB CSS;
+the 525 KiB entry budget remains unchanged. Gateway polling only runs while its
+administrator settings panel is mounted. Native relay ticks perform no network
+requests when no gateway has opted in.

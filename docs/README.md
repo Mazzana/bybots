@@ -12,6 +12,7 @@ The current evaluation build is `0.3.1-alpha.1`. See the
 
 - [Install ByBots](INSTALLATION.md)
 - [Use ByBots](USER-GUIDE.md)
+- [Multiple gateways and native Bot relay (unreleased)](MULTI-GATEWAY.md)
 - [Troubleshoot a problem](TROUBLESHOOTING.md)
 
 ## Deploy and maintain
