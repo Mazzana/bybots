@@ -11,6 +11,15 @@ export const LANGUAGE_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: LanguagePreference; label: string }>;
 
 export const french: Record<string, string> = {
+  "Application updates": "Mises à jour de l’application",
+  "Checks GitHub for stable releases only. Nothing is downloaded or installed automatically.": "Vérifie les versions stables sur GitHub uniquement. Aucun téléchargement ni aucune installation automatique.",
+  "Check for updates": "Rechercher des mises à jour",
+  "Checking GitHub…": "Vérification sur GitHub…",
+  "Version {version} is available.": "La version {version} est disponible.",
+  "No newer stable release is available.": "Aucune version stable plus récente n’est disponible.",
+  "No stable release is published yet. Preview builds are not included.": "Aucune version stable n’est encore publiée. Les préversions ne sont pas incluses.",
+  "Unable to check GitHub. Check your connection and try again in a minute.": "Impossible de consulter GitHub. Vérifiez votre connexion et réessayez dans une minute.",
+  "View release on GitHub": "Voir la version sur GitHub",
   "Outgoing Bot messages (live)": "Envois entre Bots (en direct)",
   "Dispatch is not confirmation of receipt.": "Un envoi lancé ne confirme pas sa réception.",
   "Request started": "Demande démarrée",

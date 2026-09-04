@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { join } from "node:path";
 import { startBridge, type BridgeRuntime } from "../server/runtime";
+import { ReleaseChecker } from "./release-checker";
+import { trustedUpdateRequest } from "./update-ipc";
 
 const isDev = !app.isPackaged;
 const devServerUrl = process.env.BYBOTS_DEV_URL || "http://127.0.0.1:5188";
@@ -18,6 +20,13 @@ const isMac = process.platform === "darwin";
 const windowControlChannel = "bybots:window-control";
 let embeddedBridge: BridgeRuntime | undefined;
 let mainWindow: BrowserWindow | undefined;
+const releases = new ReleaseChecker(app.getVersion());
+
+ipcMain.handle("bybots:check-updates", (event) => {
+  const expected = isDev ? devServerUrl : embeddedBridge?.url;
+  if (!trustedUpdateRequest(event, mainWindow?.webContents, expected)) throw new Error("Untrusted update request");
+  return releases.check();
+});
 
 type WindowControlAction = "minimize" | "toggle-maximize" | "close";
 
@@ -64,7 +73,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      ...(isWindows ? { preload: join(import.meta.dirname, "preload.cjs") } : {})
+      preload: join(import.meta.dirname, "preload.cjs")
     }
   });
   mainWindow = window;

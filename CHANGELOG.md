@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file. The project
 
 ### Added
 
+- Manual desktop update checks in Settings → About. Electron checks the fixed
+  public GitHub repository for its latest stable release on demand, compares
+  versions without proposing a downgrade, and links to the official release.
+  Previews are excluded. No automatic download, install, or signature claim is
+  made. Requests are bounded, shared, cached for one minute, and restricted to
+  the trusted main application frame.
 - A bounded live outgoing Bot-message activity panel based on Hermes
   `message_agent` tool events. Started, dispatched, failed, and unavailable
   acknowledgements remain distinct from confirmed receipt; repeated events

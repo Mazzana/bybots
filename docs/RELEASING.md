@@ -10,6 +10,22 @@ Development versions use a SemVer pre-release suffix, for example
 pre-release with unsigned development artifacts. It must not be presented as a
 signed official release.
 
+## Release discovery in the desktop app
+
+The manual About-panel check uses GitHub's
+[latest release endpoint](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
+for `Mazzana/bybots`. It ignores previews and drafts, accepts semantic-version
+tags with an optional `v` prefix, and compares against Electron's installed
+application version. No release body or asset download URL is exposed by this
+checker; the release-page link is derived from the fixed repository and tag.
+
+The request has an eight-second timeout, a 128 KiB response limit, no redirects
+or credentials, and a one-minute in-memory cache (including failures). IPC
+requires the expected main window, main frame, and application origin. Nothing
+contacts GitHub at startup. This stage does not download artifacts, validate
+their signing identity, install updates, or provide automatic rollback. Those
+remain release gates for the full updater.
+
 ## Development artifacts
 
 Run `npm run package:win` on Windows to create an NSIS installer and a portable

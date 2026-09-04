@@ -147,6 +147,24 @@ notification only when an active Bot or group changes from running to complete
 while the application is in the background. A denied permission must be changed
 in the operating-system or browser settings.
 
+## Desktop update checks
+
+In the desktop application, open **Settings → About → Check for updates**.
+The check contacts the public ByBots GitHub repository only after you click.
+It looks for the latest stable release, excluding preview builds, and never
+proposes an older version. A stable version can replace a preview with the same
+version number. The browser/PWA does not expose this desktop check.
+
+If a newer version is found, **View release on GitHub** opens its release page
+in your browser. Nothing is downloaded or installed automatically. Read the
+release notes and follow the [installation guide](INSTALLATION.md); this check
+does not verify installer signatures or guarantee platform artifact availability.
+
+No stable release found is different from being up to date. Network failures or
+GitHub limits show a retry message. Results are cached for one minute, so wait
+before retrying. No GitHub login, Hermes token, conversation, or Bot data is
+sent; GitHub still receives normal network metadata such as your IP address.
+
 ## Data and diagnostics
 
 In **Settings → Data**, an administrator can import or export a Hermes profile

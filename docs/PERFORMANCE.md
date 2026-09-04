@@ -10,7 +10,7 @@ build on supported x64 Windows hardware.
 | Select Bot to display cached thread | 1 second | 500-message Hermes thread |
 | New message to first visible progress | 250 ms | local Bridge before provider latency |
 | Application entry JavaScript | 525 KiB raw | `dist/assets/index-*.js` |
-| Total application JavaScript | 570 KiB raw | sum of `dist/assets/*.js` |
+| Total application JavaScript | 573 KiB raw | sum of `dist/assets/*.js` |
 | Total application CSS | 84 KiB raw | sum of `dist/assets/*.css` |
 
 `npm run build` enforces the bundle limits. The browser smoke suite covers a
@@ -60,3 +60,13 @@ build, total JavaScript moves from 577,852 to 582,595 bytes while the entry fall
 from 360,394 to 353,821 bytes. Removing unused language-picker styles reduces
 CSS from 85,960 to 85,663 bytes. The total JavaScript limit moves from 565 to
 570 KiB for this feature; the initial-entry and CSS limits remain unchanged.
+
+## Manual desktop release-check measurement
+
+The release checker runs in Electron, not in the browser bundle. Its status UI
+ships with the existing on-demand Settings chunk and reuses shared feedback
+and button styles. From the live-dispatch baseline of 583,572 bytes, total
+JavaScript rises to 585,932 bytes; the entry moves from 354,798 to 355,713 bytes,
+including English/French status strings. CSS remains 85,701 bytes. The total
+budget moves from 570 to 573 KiB for this 2.4 KB addition; the entry and CSS
+limits are unchanged. No network request is made until the user clicks Check.

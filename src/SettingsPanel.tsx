@@ -5,6 +5,7 @@ import { BotAvatar } from "./BotAvatar";
 import { BotTransferPanel } from "./BotTransferPanel";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
 import { DiagnosticsExportPanel } from "./DiagnosticsExportPanel";
+import { DesktopUpdates } from "./DesktopUpdates";
 import { DialogShell } from "./Dialog";
 import { FeedbackState } from "./FeedbackState";
 import { FormField } from "./FormField";
@@ -212,6 +213,7 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
           {section === "about" && <section aria-labelledby="settings-about">
             <div className="settings-section-heading"><h3 id="settings-about">{t("About")}</h3><p>{t("Open-source client for orchestrating Hermes Bots.")}</p></div>
             <div className="about-card"><span className="brand-mark">B</span><div><strong>ByBots</strong><small>Version {__APP_VERSION__}</small></div></div>
+            <DesktopUpdates />
             <dl className="about-details"><div><dt>{t("Access level")}</dt><dd>{role === "admin" ? t("Administrator") : role === "operator" ? t("Operator") : t("Read only")}</dd></div><div><dt>{t("Runtime")}</dt><dd>Hermes 0.21</dd></div><div><dt>{t("Interface languages")}</dt><dd>English, Français</dd></div></dl>
           </section>}
         </div>
