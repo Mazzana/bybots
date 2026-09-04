@@ -7,12 +7,36 @@ conversations, routines, and tools.
 ## Before you start
 
 - Production ByBots packages do not bundle or start Hermes.
-- A local gateway usually listens on `http://127.0.0.1:9119`.
+- ByBots expects local Hermes at `http://127.0.0.1:9120` by default.
 - A remote gateway must use HTTPS or a trusted private network.
 - A Hermes session token is a secret. Never place it in an issue, screenshot,
   tracked file, or support conversation.
 
 Review the current platform matrix in [SUPPORT.md](SUPPORT.md).
+
+## Prepare Hermes
+
+ByBots is the workspace; Hermes is the separate application that runs your Bots.
+Installing ByBots alone does not install Hermes.
+
+1. If Hermes is not installed yet, follow the installation instructions in the
+   [official Hermes repository](https://github.com/NousResearch/hermes-agent).
+   Use a version supported by [ByBots](SUPPORT.md).
+2. If you already use Hermes on this computer, start its local service before
+   returning to ByBots. Keep your existing profiles and configuration.
+3. For a CLI installation, the local service command used by ByBots is
+   `hermes serve --host 127.0.0.1 --port 9120 --skip-build`. Run it in the
+   environment where Hermes is installed. Docker and WSL installations need
+   their service port to be reachable from the computer running ByBots.
+4. Keep ByBots open with **Local Hermes** selected. During first-run setup,
+   it checks periodically and opens your workspace after both the connection
+   and the workspace data have loaded successfully. No local token copying is
+   required for a compatible shared local session.
+
+If Hermes is hosted elsewhere, choose **Remote Hermes**, enter its trusted URL,
+and complete the sign-in shown by ByBots. Choosing remote pauses local recovery
+so it cannot interrupt your sign-in. The
+[troubleshooting guide](TROUBLESHOOTING.md) covers connection failures.
 
 ## Easiest installation: download the prebuilt preview
 
@@ -90,7 +114,7 @@ Requirements:
 
 ```bash
 git clone https://github.com/Mazzana/bybots.git
-cd byfinity-bots
+cd bybots
 npm ci
 npm run dev
 ```

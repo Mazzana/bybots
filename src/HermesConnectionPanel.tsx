@@ -3,13 +3,14 @@ import { CheckCircle2, KeyRound, Link2, LockKeyhole, RotateCcw, Server, ShieldAl
 import type { AccessRole, BotsApi, HermesAuthProbe, HermesConnection } from "./App";
 import { FeedbackState } from "./FeedbackState";
 import { FormField } from "./FormField";
-import { DEFAULT_LOCAL_HERMES_URL, isLocalHermesUrl } from "./hermesConnectionUi";
+import { DEFAULT_LOCAL_HERMES_URL, isHermesReady, isLocalHermesUrl } from "./hermesConnectionUi";
 import { useI18n } from "./i18n";
 
 interface HermesConnectionPanelProps {
   api: BotsApi;
   role: AccessRole;
   initialLocalUnavailable?: boolean;
+  autoReconnect?: boolean;
   onConnected(): void | Promise<void>;
 }
 
@@ -22,7 +23,7 @@ function secureTransport(value: string) {
   }
 }
 
-export function HermesConnectionPanel({ api, role, initialLocalUnavailable = false, onConnected }: HermesConnectionPanelProps) {
+export function HermesConnectionPanel({ api, role, initialLocalUnavailable = false, autoReconnect = false, onConnected }: HermesConnectionPanelProps) {
   const { t, formatError } = useI18n();
   const [connection, setConnection] = useState<HermesConnection | null>(null);
   const [target, setTarget] = useState<"local" | "remote">("local");
@@ -35,9 +36,35 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
   const [error, setError] = useState("");
   const [localUnavailable, setLocalUnavailable] = useState(false);
   const [success, setSuccess] = useState("");
+  const [recoveryError, setRecoveryError] = useState("");
+  const [recoveryComplete, setRecoveryComplete] = useState(false);
   const oauthAttempt = useRef(0);
   const supported = Boolean(api.getHermesConnection && api.testHermesConnection && api.updateHermesConnection && api.resetHermesConnection);
   const canManage = supported && role === "admin";
+  const recovering = autoReconnect && target === "local" && !loading && !busy && !recoveryComplete && Boolean(api.getDiagnostics);
+
+  useEffect(() => {
+    if (!recovering) return;
+    let active = true;
+    let timer = 0;
+    async function check() {
+      try {
+        const diagnostics = await api.getDiagnostics!();
+        if (!active) return;
+        if (isHermesReady(diagnostics) && isLocalHermesUrl(diagnostics.hermes.baseUrl)) {
+          await onConnected();
+          if (active) { setRecoveryError(""); setRecoveryComplete(true); }
+          return;
+        }
+        setRecoveryError(diagnostics.hermes.compatible === false ? t("Hermes version is not supported") : diagnostics.failure ? t(diagnostics.failure.hint) : "");
+      } catch {
+        if (active) setRecoveryError(t("The connection could not be completed. Retry or open the setup guide below."));
+      }
+      if (active) timer = window.setTimeout(() => void check(), 4_000);
+    }
+    timer = window.setTimeout(() => void check(), 4_000);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [api, onConnected, recovering, t]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -126,8 +153,8 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
       setBaseUrl(next.baseUrl);
       setTarget("remote");
       setToken("");
-      setSuccess(t("Connected to Hermes {version}", { version: next.version || "" }));
       await onConnected();
+      setSuccess(t("Connected to Hermes {version}", { version: next.version || "" }));
     } catch (cause) {
       setError(formatError(cause));
     } finally {
@@ -141,17 +168,21 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
     setLocalUnavailable(false);
     setError("");
     setSuccess("");
+    setRecoveryError("");
+    let restored = false;
     try {
       const next = await api.resetHermesConnection();
+      restored = true;
       setConnection(next);
       setBaseUrl(next.baseUrl);
       setTarget("local");
       setToken("");
-      setSuccess(t("Default Hermes gateway restored."));
       await onConnected();
+      setRecoveryComplete(true);
+      setSuccess(t("Default Hermes gateway restored."));
     } catch (cause) {
-      setLocalUnavailable(true);
-      setError(formatError(cause));
+      if (!restored) { setLocalUnavailable(true); setError(formatError(cause)); }
+      else setRecoveryError(t("The connection could not be completed. Retry or open the setup guide below."));
     } finally {
       setBusy("");
     }
@@ -177,9 +208,9 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
           if (next.baseUrl.replace(/\/+$/, "") !== requestedBaseUrl || next.authMode !== "oauth" || !next.hasToken || next.requiresReauthentication) continue;
           setConnection(next);
           setBaseUrl(next.baseUrl);
+          await onConnected();
           setSuccess(t("Connected to Hermes {version}", { version: next.version || "" }));
           setBusy("");
-          await onConnected();
           return;
         } catch {
           // The local Bridge can briefly be unavailable while the browser completes OAuth.
@@ -206,6 +237,8 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
   const showLocalUnavailable = target === "local" && (initialLocalUnavailable || localUnavailable);
 
   return <div className="gateway-settings">
+    {recovering && <div className="local-gateway-note first-run-waiting" role="status"><RotateCcw size={18} /><span><strong>{t("Waiting for local Hermes…")}</strong><small>{t("ByBots checks the connection automatically every few seconds. Nothing needs to be reconfigured.")}</small></span></div>}
+    {target === "local" && recoveryError && <FeedbackState tone="error">{recoveryError}</FeedbackState>}
     {connection && <div className="settings-status"><span className={`machine-dot ${connection.version && !connection.requiresReauthentication ? "connected" : ""}`} /><span><strong>{t("Active gateway")}</strong><small>{connection.baseUrl}{connection.version ? ` · Hermes ${connection.version}` : ""}</small></span><em>{connection.requiresReauthentication ? t("Sign in again") : connection.authMode === "oauth" ? t("OAuth") : connection.source === "saved" ? t("Saved") : t("Default")}</em></div>}
     {connection?.requiresReauthentication && <FeedbackState tone="note" icon={<ShieldAlert size={18} />} title={t("Hermes session expired")}>{t("Sign in again to restore this remote gateway connection.")}</FeedbackState>}
 

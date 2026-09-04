@@ -191,7 +191,7 @@ describe("ByBots UI", () => {
     renderApp(api, "en");
 
     expect(await screen.findByRole("heading", { name: "Connect your Hermes gateway" })).toBeInTheDocument();
-    const waiting = screen.getByText("Waiting for local Hermes…").closest("[role='status']");
+    const waiting = (await screen.findByText("Waiting for local Hermes…")).closest("[role='status']");
     expect(waiting).toHaveTextContent("Waiting for local Hermes");
     expect(waiting).toHaveTextContent("Nothing needs to be reconfigured");
     expect(screen.queryByRole("heading", { name: "Conversations unavailable" })).not.toBeInTheDocument();

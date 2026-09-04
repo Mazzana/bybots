@@ -13,6 +13,12 @@ All notable changes to this project will be documented in this file. The project
 
 ### Fixed
 
+- First-run recovery pauses during remote gateway configuration, ignores stale
+  local health responses, and only completes after authentication, compatibility,
+  and workspace loading succeed. Failed loading remains retryable.
+- The welcome screen now links to a step-by-step Hermes setup guide and keeps
+  keyboard focus inside the dialog. Loopback detection includes IPv6 and rejects
+  remote hostnames beginning with `127.`.
 - An unavailable local Hermes runtime now produces a dedicated, actionable
   message with the expected loopback address, automatic-session guidance, and
   an accessible retry action. Remote gateway failures retain their separate
