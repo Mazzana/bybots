@@ -21,6 +21,8 @@ describe("macOS distribution", () => {
       { target: "dmg", arch: ["universal"] },
       { target: "zip", arch: ["universal"] }
     ]);
+    expect(packageJson.scripts["package:mac"]).toContain("--publish never");
+    expect(packageJson.scripts["package:win"]).toContain("--publish never");
   });
 
   it("keeps signature, notarization, smoke, and artifact gates in the release workflow", () => {
@@ -38,6 +40,7 @@ describe("macOS distribution", () => {
 
   it("publishes alpha tags as unsigned previews while preserving stable signing gates", () => {
     const workflow = readFileSync(resolve(root, ".github", "workflows", "release.yml"), "utf8");
+    const artifactCheck = readFileSync(resolve(root, "scripts", "check-macos-artifacts.mjs"), "utf8");
     expect(workflow).toContain("contains(github.ref_name, '-')");
     expect(workflow).toContain("CSC_IDENTITY_AUTO_DISCOVERY");
     expect(workflow).toContain("unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID");
@@ -46,6 +49,7 @@ describe("macOS distribution", () => {
     expect(workflow).toContain("Windows signing secrets are required for a stable release");
     expect(workflow).toContain("Apple notarization secrets are required for a stable release");
     expect(workflow).toContain("release_flags+=(--prerelease)");
+    expect(artifactCheck).toContain("!/not signed at all/i.test(signatureDetails)");
   });
 
   it("declares the Electron hardened-runtime entitlements", () => {
