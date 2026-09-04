@@ -17,13 +17,15 @@ import { SwitchControl, SwitchInput } from "./SwitchControl";
 import { UsagePanel } from "./UsagePanel";
 import { getBotDisplayName } from "./botDisplayName";
 
-type SettingsSection = "general" | "chat" | "usage" | "accessibility" | "hermes" | "mcp" | "data" | "about";
+export type SettingsSection = "general" | "chat" | "usage" | "accessibility" | "hermes" | "mcp" | "data" | "about";
 
 interface SettingsPanelProps {
   api: BotsApi;
   bots: Bot[];
   machines: HermesMachine[];
   role: AccessRole;
+  localHermesUnavailable?: boolean;
+  initialSection?: SettingsSection;
   preferences: AppPreferences;
   onPreferencesChange(preferences: AppPreferences): void;
   onBotImported(bot: Bot): void;
@@ -46,9 +48,9 @@ function enabledMcp(config: BotConfiguration | null) {
   return config?.mcpServers.filter((server) => server.enabled).map((server) => server.name) ?? [];
 }
 
-export function SettingsPanel({ api, bots, machines, role, preferences, onPreferencesChange, onBotImported, onGatewayChanged, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ api, bots, machines, role, localHermesUnavailable = false, initialSection = "general", preferences, onPreferencesChange, onBotImported, onGatewayChanged, onClose }: SettingsPanelProps) {
   const { languagePreference, setLanguage, t, formatError } = useI18n();
-  const [section, setSection] = useState<SettingsSection>("general");
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const [mcpBot, setMcpBot] = useState(bots[0]?.name || "");
   const [mcpConfig, setMcpConfig] = useState<BotConfiguration | null>(null);
   const [mcpSearch, setMcpSearch] = useState("");
@@ -173,7 +175,7 @@ export function SettingsPanel({ api, bots, machines, role, preferences, onPrefer
           {section === "hermes" && <section aria-labelledby="settings-hermes">
             <div className="settings-section-heading"><h3 id="settings-hermes">Hermes</h3><p>{t("Choose the Hermes gateway that orchestrates this application.")}</p></div>
             <DiagnosticsPanel api={api} />
-            <HermesConnectionPanel api={api} role={role} onConnected={onGatewayChanged} />
+            <HermesConnectionPanel api={api} role={role} initialLocalUnavailable={localHermesUnavailable} onConnected={onGatewayChanged} />
             {machines.length > 0 && <><h4 className="settings-subheading">{t("Connected machines")}</h4><div className="machine-list settings-machines">{machines.map((machine) => <article key={machine.id}><span className={`machine-dot ${machine.status}`} /><div><strong>{t(machine.name)}</strong><small>{machine.kind === "local" ? t("Local runtime") : machine.url}</small></div><em>{machine.status === "connected" ? t("Connected") : machine.status === "needs_auth" ? t("Key required") : t("Configured")}</em></article>)}</div></>}
             {machines.length <= 1 && <p className="settings-help">{t("Remote peers are securely configured from Hermes with {command}.", { command: "hermes peer add" })}</p>}
           </section>}

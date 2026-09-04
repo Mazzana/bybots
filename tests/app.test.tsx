@@ -153,6 +153,27 @@ describe("ByBots UI", () => {
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Connect your Hermes gateway" })).not.toBeInTheDocument());
   });
 
+  it("explains how to recover when local Hermes is unavailable", async () => {
+    const local = { baseUrl: "http://127.0.0.1:9120", defaultBaseUrl: "http://127.0.0.1:9120", hasToken: true, secure: true, source: "environment" as const };
+    const api = {
+      listBots: vi.fn(), getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(),
+      getHermesConnection: vi.fn().mockResolvedValue(local),
+      testHermesConnection: vi.fn(), updateHermesConnection: vi.fn(),
+      resetHermesConnection: vi.fn().mockRejectedValue(new Error("Unable to connect to the Hermes WebSocket"))
+    };
+    render(<LanguageProvider initialLanguage="en"><HermesConnectionPanel api={api} role="admin" initialLocalUnavailable onConnected={vi.fn()} /></LanguageProvider>);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Local Hermes is not available");
+    expect(alert).toHaveTextContent("ByBots could not reach Hermes at http://127.0.0.1:9120");
+    expect(alert).toHaveTextContent("no URL or token is required");
+    expect(screen.queryByLabelText("Hermes session token")).not.toBeInTheDocument();
+
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry local connection" }));
+    await waitFor(() => expect(api.resetHermesConnection).toHaveBeenCalledOnce());
+    expect(await screen.findByRole("alert")).toHaveTextContent("Start Hermes on this computer, then try again");
+  });
+
   it("shows initial loading and a recoverable Bot-list failure before the empty state", async () => {
     const firstLoad = deferred<Bot[]>();
     const api = {
@@ -219,11 +240,14 @@ describe("ByBots UI", () => {
   });
 
   it.each([
-    ["offline", { status: "error" as const, baseUrl: "http://127.0.0.1:9120" }, "Hermes is unavailable"],
-    ["incompatible", { status: "ready" as const, baseUrl: "http://127.0.0.1:9120", version: "0.22.0", compatible: false }, "Hermes version is not supported"]
-  ])("shows the explicit %s Hermes state", async (_state, hermes, heading) => {
+    ["offline local", { status: "error" as const, baseUrl: "http://127.0.0.1:9120" }, "Local Hermes is not available", "Start Hermes on this computer"],
+    ["offline remote", { status: "error" as const, baseUrl: "https://hermes.example.test" }, "Hermes is unavailable", "Open diagnostics to review the gateway connection."],
+    ["incompatible", { status: "ready" as const, baseUrl: "http://127.0.0.1:9120", version: "0.22.0", compatible: false }, "Hermes version is not supported", "Open diagnostics to review the gateway connection."]
+  ])("shows the explicit %s Hermes state", async (_state, hermes, heading, detail) => {
     const api = {
       listBots: vi.fn().mockResolvedValue([]), getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(),
+      getHermesConnection: vi.fn().mockResolvedValue({ baseUrl: hermes.baseUrl, defaultBaseUrl: "http://127.0.0.1:9120", hasToken: true, secure: true, source: "environment" as const }),
+      testHermesConnection: vi.fn(), updateHermesConnection: vi.fn(), resetHermesConnection: vi.fn(),
       getDiagnostics: vi.fn().mockResolvedValue({
         checkedAt: new Date().toISOString(), supportedHermes: "0.21.x",
         bridge: { status: "ready" as const, version: "0.1.0" }, hermes,
@@ -234,6 +258,12 @@ describe("ByBots UI", () => {
 
     const stateHeading = await screen.findByText(heading, { selector: "strong" });
     expect(stateHeading.closest("[role='alert']")).toBeInTheDocument();
+    expect(stateHeading.closest("[role='alert']")).toHaveTextContent(detail);
+    if (_state === "offline local") {
+      fireEvent.click(within(stateHeading.closest("[role='alert']")!).getByRole("button", { name: "Open diagnostics" }));
+      expect(await screen.findByRole("heading", { name: "Hermes", level: 3 })).toBeInTheDocument();
+      expect(within(screen.getByRole("dialog")).getByText("Local Hermes is not available")).toBeInTheDocument();
+    }
   });
 
   it("keeps Bot details free of cost estimates without unmounting chat", async () => {

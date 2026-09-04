@@ -1,26 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, KeyRound, Link2, LockKeyhole, Server, ShieldAlert } from "lucide-react";
+import { CheckCircle2, KeyRound, Link2, LockKeyhole, RotateCcw, Server, ShieldAlert } from "lucide-react";
 import type { AccessRole, BotsApi, HermesAuthProbe, HermesConnection } from "./App";
 import { FeedbackState } from "./FeedbackState";
 import { FormField } from "./FormField";
+import { DEFAULT_LOCAL_HERMES_URL, isLocalHermesUrl } from "./hermesConnectionUi";
 import { useI18n } from "./i18n";
 
 interface HermesConnectionPanelProps {
   api: BotsApi;
   role: AccessRole;
+  initialLocalUnavailable?: boolean;
   onConnected(): void | Promise<void>;
 }
 
 function secureTransport(value: string) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.hostname === "localhost" || url.hostname === "::1" || url.hostname.startsWith("127.");
+    return url.protocol === "https:" || isLocalHermesUrl(value);
   } catch {
     return true;
   }
 }
 
-export function HermesConnectionPanel({ api, role, onConnected }: HermesConnectionPanelProps) {
+export function HermesConnectionPanel({ api, role, initialLocalUnavailable = false, onConnected }: HermesConnectionPanelProps) {
   const { t, formatError } = useI18n();
   const [connection, setConnection] = useState<HermesConnection | null>(null);
   const [target, setTarget] = useState<"local" | "remote">("local");
@@ -31,6 +33,7 @@ export function HermesConnectionPanel({ api, role, onConnected }: HermesConnecti
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"test" | "save" | "reset" | "oauth" | "">("");
   const [error, setError] = useState("");
+  const [localUnavailable, setLocalUnavailable] = useState(false);
   const [success, setSuccess] = useState("");
   const oauthAttempt = useRef(0);
   const supported = Boolean(api.getHermesConnection && api.testHermesConnection && api.updateHermesConnection && api.resetHermesConnection);
@@ -135,6 +138,7 @@ export function HermesConnectionPanel({ api, role, onConnected }: HermesConnecti
   async function reset() {
     if (!api.resetHermesConnection) return;
     setBusy("reset");
+    setLocalUnavailable(false);
     setError("");
     setSuccess("");
     try {
@@ -146,6 +150,7 @@ export function HermesConnectionPanel({ api, role, onConnected }: HermesConnecti
       setSuccess(t("Default Hermes gateway restored."));
       await onConnected();
     } catch (cause) {
+      setLocalUnavailable(true);
       setError(formatError(cause));
     } finally {
       setBusy("");
@@ -197,6 +202,8 @@ export function HermesConnectionPanel({ api, role, onConnected }: HermesConnecti
   const oauthProviderLabel = authProbe?.providers.map((provider) => provider.displayName || provider.name).join(" / ") || "";
   const oauthReady = detectedAuthMode === "oauth" && authProbe?.reachable && authProbe.nativePkce;
   const showTokenForm = detectedAuthMode === "token";
+  const localBaseUrl = connection?.defaultBaseUrl || DEFAULT_LOCAL_HERMES_URL;
+  const showLocalUnavailable = target === "local" && (initialLocalUnavailable || localUnavailable);
 
   return <div className="gateway-settings">
     {connection && <div className="settings-status"><span className={`machine-dot ${connection.version && !connection.requiresReauthentication ? "connected" : ""}`} /><span><strong>{t("Active gateway")}</strong><small>{connection.baseUrl}{connection.version ? ` · Hermes ${connection.version}` : ""}</small></span><em>{connection.requiresReauthentication ? t("Sign in again") : connection.authMode === "oauth" ? t("OAuth") : connection.source === "saved" ? t("Saved") : t("Default")}</em></div>}
@@ -204,14 +211,16 @@ export function HermesConnectionPanel({ api, role, onConnected }: HermesConnecti
 
     <div className="gateway-options" role="group" aria-label={t("Connection choices")}>
       <button type="button" aria-pressed={target === "local"} disabled={!canManage || Boolean(busy)} onClick={() => { setTarget("local"); void reset(); }}>
-        <Server size={18} /><span><strong>{busy === "reset" ? t("Connecting…") : t("Local Hermes")}</strong><small>{connection?.defaultBaseUrl || "http://127.0.0.1:9120"}</small></span>
+        <Server size={18} /><span><strong>{busy === "reset" ? t("Connecting…") : t("Local Hermes")}</strong><small>{localBaseUrl}</small></span>
       </button>
-      <button type="button" aria-pressed={target === "remote"} disabled={!canManage || Boolean(busy)} onClick={() => { setTarget("remote"); if (connection && baseUrl === connection.defaultBaseUrl) setBaseUrl(""); setError(""); setSuccess(""); }}>
+      <button type="button" aria-pressed={target === "remote"} disabled={!canManage || Boolean(busy)} onClick={() => { setTarget("remote"); setLocalUnavailable(false); if (connection && baseUrl === connection.defaultBaseUrl) setBaseUrl(""); setError(""); setSuccess(""); }}>
         <LockKeyhole size={18} /><span><strong>{t("Remote Hermes")}</strong><small>{t("HTTPS or trusted private network")}</small></span>
       </button>
     </div>
 
-    {target === "local" ? <div className="local-gateway-note">
+    {target === "local" ? showLocalUnavailable ? <div className="local-gateway-error" role="alert">
+      <ShieldAlert size={19} /><div><strong>{t("Local Hermes is not available")}</strong><p>{t("ByBots could not reach Hermes at {url}. Start Hermes on this computer, then try again. The local session is detected automatically; no URL or token is required.", { url: localBaseUrl })}</p><button type="button" disabled={!canManage || Boolean(busy)} onClick={() => void reset()}><RotateCcw size={15} />{busy === "reset" ? t("Connecting…") : t("Retry local connection")}</button></div>
+    </div> : <div className="local-gateway-note">
       <CheckCircle2 size={18} /><span><strong>{t("Managed automatically by ByBots")}</strong><small>{t("ByBots uses the private session already shared with the local Bridge.")}</small></span>
     </div> : <form className="gateway-form surface-card" onSubmit={(event) => { event.preventDefault(); if (showTokenForm) void save(); }}>
       <FormField label={t("Gateway URL")}><input type="url" inputMode="url" value={baseUrl} disabled={!canManage || Boolean(busy)} onChange={(event) => { setBaseUrl(event.target.value); setAuthProbe(null); setSuccess(""); }} placeholder="https://hermes.example.com" autoComplete="url" required /></FormField>
@@ -232,6 +241,6 @@ export function HermesConnectionPanel({ api, role, onConnected }: HermesConnecti
 
     {role !== "admin" && <p className="settings-help">{t("Only administrators can change the Hermes gateway.")}</p>}
     {success && <FeedbackState tone="success" icon={<CheckCircle2 size={16} />}>{success}</FeedbackState>}
-    {error && <FeedbackState tone="error">{error}</FeedbackState>}
+    {error && !showLocalUnavailable && <FeedbackState tone="error">{error}</FeedbackState>}
   </div>;
 }

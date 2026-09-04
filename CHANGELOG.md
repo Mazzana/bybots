@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file. The project
   delivery event instead of appearing to come from the human user. Current and
   legacy Hermes 0.21 delivery prefixes remain supported.
 
+### Fixed
+
+- An unavailable local Hermes runtime now produces a dedicated, actionable
+  message with the expected loopback address, automatic-session guidance, and
+  an accessible retry action. Remote gateway failures retain their separate
+  diagnostics flow.
+
 ## [0.3.1-alpha.1] - 2026-09-04
 
 ### Continuity and interaction quality

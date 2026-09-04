@@ -640,6 +640,14 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .local-gateway-note span, .local-gateway-note strong, .local-gateway-note small { min-width: 0; display: block; }
 .local-gateway-note strong { color: #dceae7; font-size: 12px; }
 .local-gateway-note small { margin-top: 4px; color: #9db9b2; font-size: 12px; line-height: 1.45; }
+.local-gateway-error { min-width: 0; padding: 12px; display: flex; align-items: flex-start; gap: 10px; border: 1px solid #67353c; border-radius: 11px; background: #29191c; color: #e59aa4; }
+.local-gateway-error > svg { flex: 0 0 auto; margin-top: 1px; }
+.local-gateway-error > div { min-width: 0; }
+.local-gateway-error strong { display: block; color: #f1c4ca; font-size: 12px; }
+.local-gateway-error p { margin: 5px 0 0; color: #d7a8ae; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.local-gateway-error button { min-height: 44px; margin-top: 10px; padding: 0 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #86505a; border-radius: 9px; background: #352126; color: #f0c2c8; font-size: 12px; font-weight: 650; cursor: pointer; }
+.local-gateway-error button:hover { border-color: #a66570; background: #40272d; }
+.local-gateway-error button:disabled { opacity: .55; cursor: wait; }
 .first-run-panel .settings-status { margin-top: 16px; }
 .first-run-panel .gateway-form { background: #101012; }
 

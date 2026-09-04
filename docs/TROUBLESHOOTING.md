@@ -6,6 +6,11 @@ names, conversations, or user files.
 
 ## “Unable to connect to the Hermes WebSocket”
 
+ByBots expects its default local Hermes service at `http://127.0.0.1:9120`.
+When that service is unavailable, **Settings → Hermes** shows a dedicated local
+recovery message and a **Retry local connection** action. Do not enter a token:
+the local Bridge adopts the private Hermes session automatically.
+
 1. Confirm that Hermes is running and its status API responds.
 2. Check the URL. `127.0.0.1` always refers to the computer running ByBots.
 3. When Hermes runs in Docker, verify its container and loopback port.
@@ -15,13 +20,20 @@ names, conversations, or user files.
 On Linux or macOS:
 
 ```bash
-curl -fsS http://127.0.0.1:9119/api/status
+curl -fsS http://127.0.0.1:9120/api/status
 ```
 
 On PowerShell:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:9119/api/status
+Invoke-RestMethod http://127.0.0.1:9120/api/status
+```
+
+If Hermes is installed through its CLI but is not running, start the local
+service with:
+
+```bash
+hermes serve --host 127.0.0.1 --port 9120 --skip-build
 ```
 
 When Hermes runs in Docker, execute Hermes commands inside its container, for
