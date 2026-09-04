@@ -52,10 +52,18 @@ jobs:
       - name: Run browser smoke tests
         run: npm run test:e2e
 
-      - name: Build installer and portable application
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
+      - name: Build signed installer and portable application
+        if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
         run: npm run package:win
+
+      - name: Build unsigned preview installer and portable application
+        if: ${{ !startsWith(github.ref, 'refs/tags/') || contains(github.ref_name, '-') }}
+        shell: pwsh
+        run: |
+          Remove-Item Env:CSC_LINK -ErrorAction SilentlyContinue
+          Remove-Item Env:CSC_KEY_PASSWORD -ErrorAction SilentlyContinue
+          $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
+          npm run package:win
 
       - name: Smoke-test packaged application
         run: npm run test:windows-package-smoke
@@ -132,10 +140,18 @@ jobs:
       - name: Run browser and macOS shell smoke tests
         run: npm run test:e2e
 
-      - name: Build universal DMG and ZIP
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
+      - name: Build signed and notarized universal DMG and ZIP
+        if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
         run: npm run package:mac
+
+      - name: Build unsigned preview universal DMG and ZIP
+        if: ${{ !startsWith(github.ref, 'refs/tags/') || contains(github.ref_name, '-') }}
+        shell: bash
+        run: |
+          unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+          export CSC_IDENTITY_AUTO_DISCOVERY=false
+          npm run build
+          npx electron-builder --mac dmg zip --universal --config.mac.notarize=false --publish never
 
       - name: Smoke-test packaged application
         run: npm run test:macos-package-smoke

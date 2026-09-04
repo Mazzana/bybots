@@ -40,6 +40,9 @@ describe("macOS distribution", () => {
     const workflow = readFileSync(resolve(root, ".github", "workflows", "release.yml"), "utf8");
     expect(workflow).toContain("contains(github.ref_name, '-')");
     expect(workflow).toContain("CSC_IDENTITY_AUTO_DISCOVERY");
+    expect(workflow).toContain("unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID");
+    expect(workflow).toContain("--config.mac.notarize=false --publish never");
+    expect(workflow).toContain("Remove-Item Env:CSC_LINK -ErrorAction SilentlyContinue");
     expect(workflow).toContain("Windows signing secrets are required for a stable release");
     expect(workflow).toContain("Apple notarization secrets are required for a stable release");
     expect(workflow).toContain("release_flags+=(--prerelease)");
