@@ -49,7 +49,8 @@ describe("macOS distribution", () => {
     expect(workflow).toContain("Windows signing secrets are required for a stable release");
     expect(workflow).toContain("Apple notarization secrets are required for a stable release");
     expect(workflow).toContain("release_flags+=(--prerelease)");
-    expect(artifactCheck).toContain("!/not signed at all/i.test(signatureDetails)");
+    expect(artifactCheck).toContain("signatureVerification.status === 0");
+    expect(artifactCheck).toContain("/not signed at all/i.test(signatureVerificationDetails)");
   });
 
   it("declares the Electron hardened-runtime entitlements", () => {

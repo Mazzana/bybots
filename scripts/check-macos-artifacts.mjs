@@ -60,9 +60,12 @@ for (const architecture of ["x86_64", "arm64"]) {
 const signature = run("codesign", ["-dv", "--verbose=4", appPath]);
 const signatureDetails = `${signature.stdout}\n${signature.stderr}`;
 const developerIdSigned = /Authority=Developer ID Application:/.test(signatureDetails);
-const hasSignature = signature.status === 0 && !/not signed at all/i.test(signatureDetails);
-if (hasSignature) {
-  requireCommand("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath], "Code signature verification");
+const signatureVerification = run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath]);
+const signatureVerificationDetails = `${signatureVerification.stdout}\n${signatureVerification.stderr}`;
+const hasSignature = signatureVerification.status === 0;
+const explicitlyUnsigned = /not signed at all/i.test(signatureVerificationDetails);
+if (!hasSignature && !explicitlyUnsigned) {
+  throw new Error(`Code signature verification failed: ${signatureVerificationDetails.trim() || "unknown error"}`);
 }
 if (requireSigned && !developerIdSigned) {
   throw new Error("The macOS application must be signed with a Developer ID Application certificate.");
