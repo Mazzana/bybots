@@ -1,4 +1,5 @@
 import type { GatewayEvent } from "./hermes-gateway";
+import { agentDispatch, updateAgentDispatches, type AgentDispatch } from "./agent-dispatch";
 import { hermesFailure, hermesFailureFromUnknown, type HermesFailure } from "./hermes-failure";
 
 const LEGACY_THREAD_TITLE = "Bot Chat";
@@ -32,6 +33,7 @@ export interface BotConversation {
   sessionId: string;
   running: boolean;
   messages: ChatMessage[];
+  dispatches?: AgentDispatch[];
 }
 
 export interface BotThreadSummary {
@@ -340,6 +342,17 @@ export class BotChatService {
     const conversation = key ? this.conversations.get(key) : undefined;
     if (!conversation) return;
 
+    const dispatch = agentDispatch(event);
+    if (dispatch) {
+      const previous = conversation.dispatches ?? [];
+      const next = updateAgentDispatches(previous, dispatch);
+      if (next !== previous) {
+        conversation.dispatches = next;
+        this.emitConversation(conversation);
+      }
+      return;
+    }
+
     if (event.type === "message.delta") {
       const delta = String(event.payload.text ?? event.payload.delta ?? "");
       const last = conversation.messages.at(-1);
@@ -356,6 +369,7 @@ export class BotChatService {
     }
 
     if (event.type === "message.complete") {
+      conversation.dispatches = conversation.dispatches?.map((item) => item.status === "started" ? { ...item, status: "unknown" } : item);
       const text = String(event.payload.text ?? "");
       const last = conversation.messages.at(-1);
       const failed = event.payload.status === "error" || Boolean(event.payload.error);
@@ -449,6 +463,7 @@ export class BotChatService {
       bot: conversation.bot,
       sessionId: conversation.sessionId,
       running: conversation.running,
+      ...(conversation.dispatches?.length ? { dispatches: conversation.dispatches.map((item) => ({ ...item })) } : {}),
       messages: conversation.messages.map((message) => ({
         ...message,
         ...(message.failure ? { failure: { ...message.failure } } : {})

@@ -51,6 +51,16 @@ The first-party interface never receives Hermes session or OAuth tokens. The
 Bridge exchanges the one-time OAuth code and does not return credentials from
 any endpoint.
 
+## Optional outgoing activity in conversation snapshots
+
+Bot conversation responses and SSE `conversation` events may include
+`dispatches: [{ id, target, status }]`. IDs are Hermes tool-call IDs scoped to
+that Bot conversation, not globally unique delivery IDs. Status is `started`,
+`dispatched`, `failed`, or `unknown`. In particular, `dispatched` is not a
+receipt acknowledgement. The list contains at most 50 observations in Bridge
+memory, with no message bodies, credentials, or raw tool results. Absence of
+this optional field does not prove that no Bot-to-Bot activity occurred.
+
 ## Error contract
 
 Validation and Hermes failures use:

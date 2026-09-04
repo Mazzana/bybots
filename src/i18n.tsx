@@ -11,6 +11,10 @@ export const LANGUAGE_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: LanguagePreference; label: string }>;
 
 export const french: Record<string, string> = {
+  "Outgoing Bot messages (live)": "Envois entre Bots (en direct)",
+  "Dispatch is not confirmation of receipt.": "Un envoi lancé ne confirme pas sa réception.",
+  "Request started": "Demande démarrée",
+  "Dispatched": "Envoi lancé",
   "Review Bot access": "Vérifier les accès des Bots",
   "Access for {name}": "Accès de {name}",
   "Loading configured access…": "Chargement des accès configurés…",

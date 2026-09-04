@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The project
 
 ### Added
 
+- A bounded live outgoing Bot-message activity panel based on Hermes
+  `message_agent` tool events. Started, dispatched, failed, and unavailable
+  acknowledgements remain distinct from confirmed receipt; repeated events
+  share one row and raw tool arguments/results are not retained in the panel.
 - Read-only, on-demand Bot access previews before creating a group and from
   an existing group's header, including mobile. Enabled skills, tools, and MCP
   integrations are reported separately for each member; unavailable or timed-out
@@ -21,6 +25,8 @@ All notable changes to this project will be documented in this file. The project
 
 ### Fixed
 
+- Late or misrouted live thread events no longer replace the selected
+  conversation after switching Bots or threads.
 - Late history, send, retry, and attachment-read responses no longer replace a
   different conversation. Failed sends preserve subsequent draft edits.
 - Canceled OAuth attempts no longer reopen sign-in or complete a newer attempt.

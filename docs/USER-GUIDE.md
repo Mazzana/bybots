@@ -73,6 +73,24 @@ configuration sections differ from the saved profile.
 
 ## Groups
 
+### Live Bot-to-Bot activity
+
+When Hermes emits `message_agent` tool events, the sending Bot's conversation
+shows **Outgoing Bot messages (live)** with the requested target and the observed
+status. **Dispatched** means the asynchronous send was launched, not that the
+recipient received or answered it. A failed tool acknowledgement is shown as
+**Failed**; an unrecognized result or a missing acknowledgement at turn end is
+**Status unavailable**. ByBots does not automatically retry these sends.
+
+This bounded view retains the last 50 observed calls per open conversation in
+Bridge memory. It is not a durable delivery ledger: restarting the Bridge clears
+it, and events missed while disconnected cannot be reconstructed from it.
+Older Hermes versions or disabled tool-progress events may provide no activity.
+The requested target is a label, not a verified gateway identity. This feature
+does not connect additional gateways or relay messages itself.
+
+### Group discussions
+
 A group coordinates several Bots inside a bounded discussion. `@BotName`
 mentions target a member, and user mentions display the configured user label.
 Turns are serialized, and each member can pass silently.

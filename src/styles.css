@@ -996,6 +996,8 @@ html.reduce-motion .first-run-waiting > svg { animation: none; }
 .message.user { align-self: flex-end; align-items: flex-end; }
 
 .agent-delivery {
+  font-size: 12px;
+  overflow-wrap: anywhere;
   width: min(620px, 100%);
   margin: 4px auto;
   padding: 10px 12px;

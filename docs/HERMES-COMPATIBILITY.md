@@ -52,6 +52,28 @@ content in the submitted message and never forwards a machine-local path. Files
 outside the documented text allowlist remain unavailable until a versioned
 upload contract is validated against a live Hermes runtime.
 
+## Optional live Bot-message observation
+
+The outgoing activity adapter recognizes `tool.start` and `tool.complete` for
+the exact `message_agent` tool, with `tool_id`, `args.target`, and an object or
+JSON-string `result`. Its source reference is Hermes commit
+`b0ab2e163a50d4e6c36507eba955a6067fde6abc`, inspected on 2026-09-04:
+[tool lifecycle payloads](https://github.com/NousResearch/hermes-agent/blob/b0ab2e163a50d4e6c36507eba955a6067fde6abc/tui_gateway/tool_progress.py)
+and [message dispatch semantics](https://github.com/NousResearch/hermes-agent/blob/b0ab2e163a50d4e6c36507eba955a6067fde6abc/tools/bot_mode_dm.py).
+This source inspection is not a live qualification of every 0.21.x release.
+
+An acknowledgement with `status: sent` starts asynchronous delivery and must not
+be promoted to confirmed receipt. Structured errors mark dispatch failure;
+unrecognized or missing results stay unknown. IDs are scoped to the cached Bot
+conversation, with a maximum of 50 entries. Unknown tools and malformed events
+are ignored. No raw tool message, reply, process identifier, or diagnostic is
+copied into the public activity snapshot. There is no historical hydration,
+cross-gateway identity resolution, or automatic retry in this adapter.
+
+The integration is tested with source-shaped mock events and a simulated browser
+stream. A real multi-gateway delivery, its final acknowledgement, and restart
+recovery still require a separately verified relay contract and live acceptance.
+
 ## Profile portability
 
 The Data settings use the Hermes 0.21 profile export and import endpoints. ByBots stages archives in an isolated operating-system temporary directory, transfers at most 25 MB, and removes the staging directory after every attempt.

@@ -153,7 +153,8 @@ export interface HermesFailure { reason: HermesFailureReason; title: string; det
 export interface AgentMessageIdentity { displayName: string; profile?: string; gatewayId?: string; gatewayLabel?: string }
 export interface AgentMessageAttribution { kind: "agent"; source: "hermes-delivery-prefix"; sender: AgentMessageIdentity; recipient: AgentMessageIdentity; status: "delivered" }
 export interface ChatMessage { role: "user" | "assistant"; text: string; failure?: HermesFailure; attribution?: AgentMessageAttribution }
-export interface Conversation { bot: string; sessionId: string; running: boolean; messages: ChatMessage[] }
+export interface AgentDispatch { id: string; target: string; status: "started" | "dispatched" | "failed" | "unknown" }
+export interface Conversation { bot: string; sessionId: string; running: boolean; messages: ChatMessage[]; dispatches?: AgentDispatch[] }
 export interface BotThread { id: string; bot: string; title: string; preview: string; startedAt: number; messageCount: number; running: boolean }
 export type BotThreadStreamEvent =
   | { type: "conversation"; conversation: Conversation }
@@ -604,7 +605,7 @@ export function App({ api }: { api: BotsApi }) {
       window.cancelAnimationFrame(frame);
       autoScrolling.current = false;
     };
-  }, [conversation?.messages.length, conversation?.sessionId, lastBotMessage, lastGroupMessage, selected, selectedGroupId, selectedThreadId]);
+  }, [conversation?.messages.length, conversation?.dispatches, conversation?.sessionId, lastBotMessage, lastGroupMessage, selected, selectedGroupId, selectedThreadId]);
 
   useLayoutEffect(() => {
     const previousHeight = pendingBotPrependHeight.current;
@@ -716,7 +717,11 @@ export function App({ api }: { api: BotsApi }) {
       return;
     }
     setThreadStreamStatus("connecting");
-    return api.watchThread(selected, selectedThreadId, (event) => {
+    let active = true;
+    const stop = api.watchThread(selected, selectedThreadId, (event) => {
+      const owner = event.type === "conversation" ? event.conversation.bot : event.bot;
+      const threadId = event.type === "conversation" ? event.conversation.sessionId : event.threadId;
+      if (!active || owner !== selected || threadId !== selectedThreadId) return;
       if (event.type === "conversation") {
         setConversation(event.conversation);
         syncThread(event.conversation);
@@ -737,8 +742,9 @@ export function App({ api }: { api: BotsApi }) {
         setSelectedThreadId((current) => current === event.threadId ? null : current);
       }
     }, (status) => {
-      setThreadStreamStatus(status);
+      if (active) setThreadStreamStatus(status);
     });
+    return () => { active = false; stop(); };
   }, [api, selected, selectedThreadId, supportsThreads]);
 
   useEffect(() => {
@@ -1504,6 +1510,7 @@ export function App({ api }: { api: BotsApi }) {
                 <ReplyButton label={t("Reply to {author}", { author })} onClick={() => beginReply("bot", author, message.text)} />
               </article>;
             })}
+{!conversationLoading && !conversationError && Boolean(conversation?.dispatches?.length) && <section className="agent-delivery" aria-label={t("Outgoing Bot messages (live)")}><strong>{t("Outgoing Bot messages (live)")}</strong><p className="settings-help">{t("Dispatch is not confirmation of receipt.")}</p>{conversation!.dispatches!.map((item) => <p key={item.id} className="settings-help">{item.target} · {t(({ started: "Request started", dispatched: "Dispatched", failed: "Failed", unknown: "Status unavailable" })[item.status] || "Status unavailable")}</p>)}</section>}
             {!conversationLoading && !conversationError && failedSend?.scope === "bot" && <InlineSendError failure={failedSend.failure} retrying={retrying} onRetry={retryFailedSend} onConfigure={() => setEditingBot(true)} />}
             {!conversationLoading && !conversationError && conversation?.running && <div className="typing"><span /><span /><span /><small>{t("{name} is working", { name: activeTitle })}</small></div>}
             {!conversationLoading && !conversationError && conversation && conversation.messages.length === 0 && failedSend?.scope !== "bot" && <div className="chat-empty"><BotAvatar bot={selectedBot || { name: selected, system: false }} size={54} /><h2>{t("Write to {name}", { name: activeTitle })}</h2><p>{canOperate ? t("Start the conversation with this Bot.") : t("This thread is empty and your access is read only.")}</p></div>}
