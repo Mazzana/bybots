@@ -230,6 +230,8 @@ button.brand:focus-visible { outline: 2px solid #d8d8dc; outline-offset: -2px; }
 
 .bot-thread-block { min-width: 0; }
 .sidebar-gateways { margin: 0; }
+.sidebar-gateways button { border-radius: 9px; cursor: pointer; }
+.sidebar-gateways button:hover, .sidebar-gateways button:focus-visible { background: var(--surface-hover); color: #fff; }
 .sidebar-footer .sidebar-gateways { padding-bottom: 2px; margin-bottom: 2px; border-bottom: 1px solid var(--border-subtle, #303033); max-height: 30vh; overflow-y: auto; }
 .sidebar-gateways button, .gateway-status-row { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 9px; border: 0; background: transparent; font-size: 12px; text-align: left; }
 .gateway-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

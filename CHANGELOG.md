@@ -53,6 +53,8 @@ All notable changes to this project will be documented in this file. The project
 
 ### Fixed
 
+- Gateway status buttons now expose a subtle hover and keyboard-focus state,
+  matching Settings while retaining 44px touch targets.
 - Settings now use one additive gateway-management flow instead of displaying
   the legacy local/remote replacement picker beside it. Every saved connection
   can be reauthenticated without editing its address. A local-reconnect action

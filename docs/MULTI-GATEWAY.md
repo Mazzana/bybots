@@ -129,7 +129,14 @@ restart, relay consent, failure replies and administrator-only management.
 Browser checks cover adding and connecting another gateway, enabling relay,
 and mobile containment. Fixtures do not call a language model.
 
-Before release, qualify the full exchange against two real Hermes installations
-with Bot Mode enabled, plus native OAuth reconnection on both desktop platforms.
+On 2026-09-05, a live local-to-remote and remote-to-local Bot Chat check passed:
+each source called `message_agent`, each receiving Bot produced the expected
+unique acknowledgement, and both relay records reached `replied`. The other
+desktop relay was closed for this check. Temporary relay consent was restored
+afterwards; test messages remain in the two existing Bot Chats. This validates
+the happy path, not crash recovery, network interruption or packaged OAuth.
+
+Before release, qualify live failure/recovery scenarios and native OAuth
+reconnection on both desktop platforms.
 No live provider, remote credential or production Bot was modified to run the
 fixture tests.
