@@ -30,8 +30,9 @@ it("persists two authenticated WebSockets and relays a native Bot exchange throu
     expect(botResponse.json().bots.map((bot: { name: string }) => bot.name)).toEqual(["default", "writer", `${id}::default`, `${id}::writer`]);
     expect(JSON.stringify(await call("GET", "/gateways"))).not.toContain("fixture-session");
     expect(await readFile(`${options.configFile}.gateways.json`, "utf8")).not.toContain("fixture-session");
+    await call("PUT", `/gateways/${id}/default`);
     await bridge.close(); bridge = await startBridge(options);
-    expect((await call("GET", "/gateways")).gateways).toEqual([expect.objectContaining({ id: "primary", relay: true }), expect.objectContaining({ id, relay: true, hasToken: true })]);
+    expect((await call("GET", "/gateways")).gateways).toEqual([expect.objectContaining({ id: "primary", relay: true, isDefault: false }), expect.objectContaining({ id, relay: true, hasToken: true, isDefault: true })]);
     await call("PATCH", `/gateways/${id}`, { relay: false });
     expect(remote.state.roster).toEqual([]);
   } finally {

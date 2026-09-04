@@ -11,6 +11,9 @@ export const LANGUAGE_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: LanguagePreference; label: string }>;
 
 export const french: Record<string, string> = {
+  "Main gateway": "Principale",
+  "Set as main gateway": "Définir comme principale",
+  "The main gateway is selected for new Bots. Changing it does not move existing Bots or disconnect other gateways.": "La gateway principale est présélectionnée pour les nouveaux Bots. Ce choix ne déplace pas les Bots existants et ne déconnecte pas les autres gateways.",
   "Manage simultaneous Hermes connections without replacing an existing gateway.": "Gérez plusieurs connexions Hermes simultanées sans remplacer une gateway existante.",
   "To use another address, add a gateway. This connection stays separate.": "Pour utiliser une autre adresse, ajoutez une gateway. Cette connexion reste indépendante.",
   "Adding a gateway keeps your existing connections. Bot relay is a separate permission, not a connection switch.": "L’ajout d’une gateway conserve les connexions existantes. Le relais entre Bots est une autorisation distincte, pas un sélecteur de connexion.",

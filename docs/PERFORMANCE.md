@@ -83,3 +83,12 @@ buttons. The reviewed total budgets move to 585 KiB JavaScript and 85 KiB CSS;
 the 525 KiB entry budget remains unchanged. Gateway polling only runs while its
 administrator settings panel is mounted. Native relay ticks perform no network
 requests when no gateway has opted in.
+
+## Gateway sections and main-gateway preference
+
+Sidebar grouping is derived from the existing Bot list, with no extra request
+or UI dependency. The main-gateway action reuses the lazy Settings panel and
+existing button styles. From the additive-settings baseline of 598,171 bytes,
+total JavaScript rises to 599,686 bytes (about 1.5 KB). CSS is 86,828 bytes.
+The total JavaScript limit moves from 585 to 586 KiB; CSS and initial-entry
+limits stay unchanged.

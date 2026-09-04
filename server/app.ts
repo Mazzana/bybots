@@ -201,6 +201,7 @@ export function createApp({ hermes, chat, groups, connection, gateways, remoteTo
     app.put("/api/hermes/connection/gateways/:id", async (request) => ({ connection: await gateways.updateConnection(credentials.parse(request.body), gatewayId(request.params)) }));
     app.post("/api/hermes/connection/gateways/:id/test", async (request) => ({ probe: await gateways.testConnection(credentials.parse(request.body), gatewayId(request.params)) }));
     app.patch("/api/hermes/connection/gateways/:id", async (request) => { await gateways.setRelay(gatewayId(request.params), z.object({ relay: z.boolean() }).strict().parse(request.body).relay); return { ok: true }; });
+    app.put("/api/hermes/connection/gateways/:id/default", async (request) => { await gateways.setDefaultGateway(gatewayId(request.params)); return { ok: true }; });
     app.delete("/api/hermes/connection/gateways/:id", async (request) => { await gateways.removeGateway(gatewayId(request.params)); return { ok: true }; });
     app.post("/api/hermes/connection/gateways/:id/oauth/start", async (request) => {
       const input = z.object({ baseUrl: z.string().trim().min(1).max(2048), appOrigin: z.string().url().max(2048).optional() }).strict().parse(request.body);

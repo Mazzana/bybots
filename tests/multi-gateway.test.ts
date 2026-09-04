@@ -28,6 +28,25 @@ function fixture() {
 }
 
 describe("Multi-gateway isolation", () => {
+  it("persists the default without changing existing routing, sessions or relay consent", async () => {
+    const { hub, runtimes, store } = fixture();
+    const remote = await hub.addGateway({ label: "Work", baseUrl: "https://work.example.test" });
+    await hub.setDefaultGateway(remote.id);
+    expect(store.save).toHaveBeenLastCalledWith(expect.objectContaining({ defaultGatewayId: remote.id }));
+    expect((await hub.listGateways()).filter((row) => row.isDefault).map((row) => row.id)).toEqual([remote.id]);
+    expect((await hub.listGateways()).every((row) => row.hasToken && !row.relay)).toBe(true);
+    await hub.hermes.createBot({ name: "new" });
+    expect(runtimes.get(remote.id)!.hermes.createBot).toHaveBeenCalledWith({ name: "new" });
+    await hub.chat.getConversation("writer");
+    expect(runtimes.get("primary")!.chat.getConversation).toHaveBeenCalledWith("writer");
+    expect(runtimes.get(remote.id)!.chat.getConversation).not.toHaveBeenCalled();
+    await expect(hub.setDefaultGateway("gw-000000000000")).rejects.toThrow("Unknown gateway");
+    store.save.mockRejectedValueOnce(new Error("disk full"));
+    await expect(hub.setDefaultGateway("primary")).rejects.toThrow("disk full");
+    expect((await hub.listGateways()).find((row) => row.isDefault)?.id).toBe(remote.id);
+    await hub.removeGateway(remote.id);
+    expect((await hub.listGateways()).find((row) => row.isDefault)?.id).toBe("primary");
+  });
   it("binds concurrent OAuth callbacks to their gateway and consumes each state once", async () => {
     const { hub, managers } = fixture();
     const remote = await hub.addGateway({ label: "Work", baseUrl: "https://work.example.test" });
@@ -88,7 +107,9 @@ describe("Multi-gateway isolation", () => {
     for (const role of ["operator", "viewer"]) {
       const response = await app.inject({ method: "GET", url: "/api/hermes/connection/gateways", headers: { authorization: `Bearer ${role}-secret` } });
       expect(response.statusCode).toBe(403);
+      expect((await app.inject({ method: "PUT", url: `/api/hermes/connection/gateways/${remote.id}/default`, headers: { authorization: `Bearer ${role}-secret` } })).statusCode).toBe(403);
     }
+    expect((await app.inject({ method: "PUT", url: `/api/hermes/connection/gateways/${remote.id}/default`, headers: { authorization: "Bearer admin-secret" } })).statusCode).toBe(200);
     const response = await app.inject({ method: "POST", url: "/api/bots", headers: { authorization: "Bearer admin-secret" }, payload: { name: "new", gatewayId: remote.id } });
     expect(response.statusCode).toBe(201);
     expect(response.json().bot.name).toBe(`${remote.id}::new`);

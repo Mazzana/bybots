@@ -61,6 +61,7 @@ export const api: BotsApi = {
   },
   addGateway(input) { return request("/api/hermes/connection/gateways", { method: "POST", body: JSON.stringify(input) }); },
   removeGateway(id) { return request(`/api/hermes/connection/gateways/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  setDefaultGateway(id) { return request(`/api/hermes/connection/gateways/${encodeURIComponent(id)}/default`, { method: "PUT" }); },
   setGatewayRelay(id, relay) { return request(`/api/hermes/connection/gateways/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ relay }) }); },
   forGateway(id) {
     const path = `/api/hermes/connection/gateways/${encodeURIComponent(id)}`;

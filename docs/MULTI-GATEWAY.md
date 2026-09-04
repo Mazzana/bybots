@@ -1,8 +1,9 @@
 # Multiple Hermes gateways (unreleased preview)
 
 ByBots can keep its existing primary gateway and up to eight additional local
-or remote Hermes connections. All their Bots appear in one list, with a gateway
-label. Credentials, profile names, conversations and groups remain separate.
+or remote Hermes connections. The sidebar groups Bots by gateway with a count
+for each section; search also matches gateway names. Credentials, profile names,
+conversations and groups remain separate.
 This is development-branch functionality, not a new published release.
 
 ## Connect another gateway
@@ -27,6 +28,18 @@ Hermes. Its local drafts are not deleted either. Re-adding the same URL creates
 a new connection ID; it does not automatically restore the former ID's drafts.
 Once using multiple gateways, add a new connection instead of editing a gateway
 address to avoid accidentally routing existing history to another server.
+
+## Choose the main gateway
+
+In **Settings → Hermes → Multiple gateways**, click **Set as main gateway** on
+the connection you prefer. Its Bots appear first and **Create a Bot** selects
+it by default; you can still choose another gateway for each new Bot. This
+preference is stored by the Bridge and survives app restarts. It does not
+disconnect gateways, move Bots or conversations, change relay permissions, or
+switch the conversation you have open. Existing profile IDs and legacy connection
+endpoints keep their original routing. Bot imports still use the original gateway.
+If you remove the chosen additional gateway, the original connection becomes
+the default again. The original connection cannot currently be removed.
 
 ## Allow Bots to communicate
 

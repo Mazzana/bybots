@@ -9,6 +9,23 @@ import { SettingsPanel } from "../src/SettingsPanel";
 import { DEFAULT_PREFERENCES } from "../src/preferences";
 
 afterEach(cleanup);
+it("changes the default without triggering a connection reset and reports save errors", async () => {
+  const api = fixture();
+  const changed = vi.fn(), defaultChanged = vi.fn();
+  const setDefaultGateway = vi.fn().mockResolvedValue({ ok: true });
+  render(<LanguageProvider initialLanguage="en"><GatewaysPanel api={{ ...api, setDefaultGateway }} role="admin" onChanged={changed} onDefaultChanged={defaultChanged} /></LanguageProvider>);
+  const buttons = await screen.findAllByRole("button", { name: "Set as main gateway" });
+  fireEvent.click(buttons[1]);
+  await waitFor(() => expect(defaultChanged).toHaveBeenCalledOnce());
+  expect(setDefaultGateway).toHaveBeenCalledWith("gw-123456789abc");
+  expect(changed).not.toHaveBeenCalled();
+  expect(api.setGatewayRelay).not.toHaveBeenCalled();
+  setDefaultGateway.mockRejectedValueOnce(new Error("Save failed"));
+  await waitFor(() => expect(buttons[0]).toBeEnabled());
+  fireEvent.click(buttons[0]);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
+  expect(defaultChanged).toHaveBeenCalledOnce();
+});
 function fixture() {
   return {
     listBots: vi.fn(), getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(), getConversation: vi.fn(), sendMessage: vi.fn(),
@@ -25,6 +42,7 @@ it("requires explicit relay consent and confirmation before removing only a conn
   expect(switches).toHaveLength(2); expect(switches[1]).not.toBeChecked();
   fireEvent.click(switches[1]);
   await waitFor(() => expect(api.setGatewayRelay).toHaveBeenCalledWith("gw-123456789abc", true));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Remove gateway" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Remove gateway" }));
   expect(api.removeGateway).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));

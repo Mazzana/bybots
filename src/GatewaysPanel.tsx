@@ -8,7 +8,7 @@ import { SwitchControl } from "./SwitchControl";
 import { useI18n } from "./i18n";
 import { isLocalHermesUrl } from "./hermesConnectionUi";
 
-export function GatewaysPanel({ api, role, onChanged }: { api: BotsApi; role: AccessRole; onChanged(): void | Promise<void> }) {
+export function GatewaysPanel({ api, role, onChanged, onDefaultChanged }: { api: BotsApi; role: AccessRole; onChanged(): void | Promise<void>; onDefaultChanged?(): void | Promise<void> }) {
   const { t, formatError } = useI18n();
   const [data, setData] = useState<GatewayList>({ gateways: [], activity: [] });
   const [label, setLabel] = useState("");
@@ -47,12 +47,14 @@ export function GatewaysPanel({ api, role, onChanged }: { api: BotsApi; role: Ac
     <h3>{t("Multiple gateways")}</h3>
     <p className="settings-help">{t("Keep local and remote Hermes connected together. Each Bot keeps its own gateway, credentials and conversations.")}</p>
     <p className="settings-help">{t("Adding a gateway keeps your existing connections. Bot relay is a separate permission, not a connection switch.")}</p>
+    <p className="settings-help">{t("The main gateway is selected for new Bots. Changing it does not move existing Bots or disconnect other gateways.")}</p>
     <p className="settings-help">{t("Enable Bot relay on at least two trusted gateways to share their Bot roster and allow message_agent exchanges. Messages and replies cross these gateways; target Bots keep their existing tools and permissions. Keep ByBots running. Do not run another Desktop relay on the same gateways.")}</p>
     <div className="multi-gateway-list">{data.gateways.map((gateway) => <article className="surface-card" key={gateway.id}>
       <div className="multi-gateway-heading"><strong>{gateway.label}</strong><small>{gateway.requiresReauthentication ? t("Sign in again") : gateway.hasToken ? t("Session saved") : t("Connection required")}</small></div>
       <p className="gateway-address">{gateway.baseUrl}</p><small>{t("Relay address")}: <code>@bot@{gateway.id}</code></small>
       <SwitchControl label={t("Allow Bot relay")} description={t(status[gateway.relayStatus])} checked={gateway.relay} disabled={busy || (!gateway.hasToken && !gateway.relay)} onChange={(event) => void run(() => api.setGatewayRelay!(gateway.id, event.target.checked))} />
       <div className="gateway-actions">
+        {api.setDefaultGateway && <button type="button" disabled={busy || gateway.isDefault} onClick={() => void run(async () => { await api.setDefaultGateway!(gateway.id); await onDefaultChanged?.(); })}>{gateway.isDefault ? t("Main gateway") : t("Set as main gateway")}</button>}
         <button type="button" disabled={busy} aria-expanded={selected === gateway.id} onClick={() => setSelected(selected === gateway.id ? "" : gateway.id)}>{t("Configure connection")}</button>
         {gateway.id !== "primary" && <button type="button" disabled={busy} onClick={() => setRemoving(gateway.id)}>{t("Remove gateway")}</button>}
       </div>

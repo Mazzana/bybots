@@ -32,6 +32,7 @@ interface SettingsPanelProps {
   onPreferencesChange(preferences: AppPreferences): void;
   onBotImported(bot: Bot): void;
   onGatewayChanged(): void | Promise<void>;
+  onDefaultGatewayChanged?(): void | Promise<void>;
   onClose(): void;
 }
 
@@ -50,7 +51,7 @@ function enabledMcp(config: BotConfiguration | null) {
   return config?.mcpServers.filter((server) => server.enabled).map((server) => server.name) ?? [];
 }
 
-export function SettingsPanel({ api, bots, machines, role, localHermesUnavailable = false, initialSection = "general", preferences, onPreferencesChange, onBotImported, onGatewayChanged, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ api, bots, machines, role, localHermesUnavailable = false, initialSection = "general", preferences, onPreferencesChange, onBotImported, onGatewayChanged, onDefaultGatewayChanged, onClose }: SettingsPanelProps) {
   const { languagePreference, setLanguage, t, formatError } = useI18n();
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [mcpBot, setMcpBot] = useState(bots[0]?.name || "");
@@ -185,7 +186,7 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
             <div className="settings-section-heading"><h3 id="settings-hermes">Hermes</h3><p>{t(api.listGateways ? "Manage simultaneous Hermes connections without replacing an existing gateway." : "Choose the Hermes gateway that orchestrates this application.")}</p></div>
             <DiagnosticsPanel api={api} />
             {api.listGateways
-              ? <GatewaysPanel api={api} role={role} onChanged={onGatewayChanged} />
+              ? <GatewaysPanel api={api} role={role} onChanged={onGatewayChanged} onDefaultChanged={onDefaultGatewayChanged} />
               : <HermesConnectionPanel api={api} role={role} initialLocalUnavailable={localHermesUnavailable} onConnected={onGatewayChanged} />}
             {machines.length > 0 && <><h4 className="settings-subheading">{t("Connected machines")}</h4><div className="machine-list settings-machines">{machines.map((machine) => <article key={machine.id}><span className={`machine-dot ${machine.status}`} /><div><strong>{t(machine.name)}</strong><small>{machine.kind === "local" ? t("Local runtime") : machine.url}</small></div><em>{machine.status === "connected" ? t("Connected") : machine.status === "needs_auth" ? t("Key required") : t("Configured")}</em></article>)}</div></>}
             {machines.length <= 1 && <p className="settings-help">{t("Remote peers are securely configured from Hermes with {command}.", { command: "hermes peer add" })}</p>}

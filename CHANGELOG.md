@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The project
 
 ### Added
 
+- Sidebar Bots are grouped by gateway with counts and gateway-name search.
+  Administrators can choose a persistent main gateway in Settings, used by
+  default for new Bots and displayed first. Existing Bot IDs, conversations,
+  sessions and relay permissions remain unchanged.
 - Multi-gateway preview: keep the primary Hermes connection and up to eight
   additional gateways, each with independent session-token or native OAuth
   authentication. Bots share one list with gateway labels and scoped profile

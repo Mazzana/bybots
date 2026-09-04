@@ -229,6 +229,10 @@ button.brand:focus-visible { outline: 2px solid #d8d8dc; outline-offset: -2px; }
 .thread-row.active { background: var(--surface-selected); }
 
 .bot-thread-block { min-width: 0; }
+.bot-gateway-section + .bot-gateway-section { margin-top: 12px; }
+.bot-gateway-heading { display: flex; align-items: center; gap: 8px; padding: 6px 9px; color: #a1a1aa; font-size: 12px; }
+.bot-gateway-heading h3 { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: inherit; font-weight: 600; }
+.bot-gateway-heading small { font-size: inherit; }
 
 .thread-copy { min-width: 0; overflow: hidden; }
 
