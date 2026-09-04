@@ -10,7 +10,7 @@ build on supported x64 Windows hardware.
 | Select Bot to display cached thread | 1 second | 500-message Hermes thread |
 | New message to first visible progress | 250 ms | local Bridge before provider latency |
 | Application entry JavaScript | 525 KiB raw | `dist/assets/index-*.js` |
-| Total application JavaScript | 565 KiB raw | sum of `dist/assets/*.js` |
+| Total application JavaScript | 570 KiB raw | sum of `dist/assets/*.js` |
 | Total application CSS | 84 KiB raw | sum of `dist/assets/*.css` |
 
 `npm run build` enforces the bundle limits. The browser smoke suite covers a
@@ -49,3 +49,14 @@ bytes total JavaScript and a 363,273-byte entry), the final measured build is
 577,852 bytes total with a 360,394-byte entry: about 4.8 KB more overall, but
 2.9 KB less in the initial entry. The total JavaScript budget moves from 560 to
 565 KiB for this feature; the entry and CSS budgets remain unchanged.
+
+## Group access preview measurement
+
+Per-member access previews reuse the existing configuration API, identity,
+feedback, and dialog components. Their code is split into an on-demand chunk;
+configuration requests only start when the user opens the preview. The optional
+Bot routines panel now also loads separately. Compared with the model-library
+build, total JavaScript moves from 577,852 to 582,595 bytes while the entry falls
+from 360,394 to 353,821 bytes. Removing unused language-picker styles reduces
+CSS from 85,960 to 85,663 bytes. The total JavaScript limit moves from 565 to
+570 KiB for this feature; the initial-entry and CSS limits remain unchanged.

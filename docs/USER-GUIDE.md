@@ -77,6 +77,17 @@ A group coordinates several Bots inside a bounded discussion. `@BotName`
 mentions target a member, and user mentions display the configured user label.
 Turns are serialized, and each member can pass silently.
 
+Choose **Review Bot access** after selecting members in the creation dialog,
+or use the shield button in an existing group's header (also on mobile). The
+read-only preview loads enabled skills, tools, and MCP integrations for each
+Bot only when opened. **Refresh access** reloads the snapshot after a Hermes
+configuration change. A member that fails to respond within 15 seconds is
+marked unavailable without hiding the other members' results.
+
+This is declared configuration, not a check of effective file permissions or
+credentials. **None reported by Hermes** does not certify that a Bot has no
+access; an unavailable configuration must never be interpreted that way either.
+
 Treat every Bot in a group as part of the same trust domain. Do not mix a Bot
 with highly sensitive data access and a Bot with powerful mutation tools unless
 that combined access is intentional.

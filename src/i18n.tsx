@@ -11,6 +11,17 @@ export const LANGUAGE_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: LanguagePreference; label: string }>;
 
 export const french: Record<string, string> = {
+  "Review Bot access": "Vérifier les accès des Bots",
+  "Access for {name}": "Accès de {name}",
+  "Loading configured access…": "Chargement des accès configurés…",
+  "Enabled skills": "Compétences activées",
+  "Enabled tools": "Outils activés",
+  "Enabled MCP integrations": "Intégrations MCP activées",
+  "None reported by Hermes": "Aucun élément déclaré par Hermes",
+  "Refresh access": "Actualiser les accès",
+  "Bots can receive messages shared with the group. Each keeps its own configured capabilities.": "Les Bots peuvent recevoir les messages partagés avec le groupe. Chacun conserve ses propres capacités configurées.",
+  "This is a configuration snapshot, not a verification of file permissions, credentials, or effective access. Refresh after changing Hermes.": "Cet aperçu décrit la configuration, pas les permissions sur les fichiers, les identifiants ni les accès effectifs. Actualisez après une modification dans Hermes.",
+  "Access could not be verified. Do not assume this Bot has no access.": "Les accès n’ont pas pu être vérifiés. Cela ne signifie pas que ce Bot n’a aucun accès.",
   "Find a model": "Trouver un modèle",
   "Search models": "Rechercher des modèles",
   "Available models": "Modèles disponibles",

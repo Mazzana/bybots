@@ -360,10 +360,6 @@ button.brand:focus-visible { outline: 2px solid #d8d8dc; outline-offset: -2px; }
 
 .sidebar-footer > button { color: #b0b0b5; font-size: 12px; cursor: pointer; }
 .sidebar-footer > button:hover { background: var(--surface-hover); color: #fff; }
-.language-picker { min-height: 44px; padding: 5px 7px; display: flex; align-items: center; gap: 10px; color: #b0b0b5; }
-.language-picker select { min-width: 0; flex: 1; border: 0; background: transparent; color: #b0b0b5; font: inherit; cursor: pointer; }
-.language-picker select:focus-visible { outline: 2px solid #83838a; outline-offset: 3px; border-radius: 4px; }
-.language-picker option { background: #1a1a1a; color: #eee; }
 
 .settings-backdrop {
   position: fixed;
@@ -796,6 +792,7 @@ html.reduce-motion .first-run-waiting > svg { animation: none; }
 .chat-model .model-saved { color: #62ad8f; }
 .model-library .modal-actions { font-size: 12px; }
 .model-library input { font-size: 16px; }
+.group-access-preview { font-size: 12px; overflow-wrap: anywhere; }
 
 .details-toggle {
   width: 44px;
@@ -1788,7 +1785,7 @@ html.reduce-motion .first-run-waiting > svg { animation: none; }
   .conversation-title h1 { max-width: none; font-size: 16px; }
   .mobile-back-button { width: 44px; height: 44px; display: grid; margin-right: -3px; color: #d5d5da; }
   .conversation-actions { display: flex; }
-  .conversation-actions > :not(.chat-model), .chat-model-control { display: none; }
+  .conversation-actions > :not(.chat-model):not(.group-access), .chat-model-control { display: none; }
   .thread-tabs-bar { padding-inline: 7px; }
   .thread-tab { max-width: 164px; padding-inline: 10px; }
   .thread-tab-new span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }

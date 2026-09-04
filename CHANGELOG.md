@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The project
 
 ### Added
 
+- Read-only, on-demand Bot access previews before creating a group and from
+  an existing group's header, including mobile. Enabled skills, tools, and MCP
+  integrations are reported separately for each member; unavailable or timed-out
+  configurations are never presented as an absence of access.
 - An on-demand model search dialog in the chat header with device-local
   favorites and the eight most recent successful model selections. The list
   only includes models advertised by the current Hermes Bot configuration.
