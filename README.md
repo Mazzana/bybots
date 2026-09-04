@@ -26,9 +26,13 @@ Bridge that keeps gateway credentials away from the browser.
 
 ## See ByBots in action
 
-| Desktop workspace | Mobile conversation |
+**A focused conversation with a specialized Bot**
+
+![ByBots conversation with Launch Copilot producing a structured launch plan and a generated brief](docs/screenshots/byfinity-bots-bot-conversation.png)
+
+| Multi-Bot workspace | Mobile conversation |
 | --- | --- |
-| ![ByBots desktop workspace showing Bots, conversations, and recent work](docs/screenshots/byfinity-bots-desktop.png) | ![ByBots mobile conversation with a compact messaging layout](docs/screenshots/byfinity-bots-mobile.png) |
+| ![ByBots desktop workspace showing several Bots collaborating in a group conversation](docs/screenshots/byfinity-bots-desktop.png) | ![ByBots mobile conversation with a compact messaging layout](docs/screenshots/byfinity-bots-mobile.png) |
 
 The same responsive interface runs in the browser and inside the Windows or
 macOS desktop shell. On mobile, the navigation gets out of the way when a
