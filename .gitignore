@@ -1,0 +1,21 @@
+node_modules/
+dist/
+dist-electron/
+dist-server/
+release/
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.log
+design-qa-*.png
+.playwright-cli/
+output/
+test-results/
+playwright-report/
+
+# Local operations material. These files contain deployment-specific details
+# and must never be published with the open-source repository.
+ROADMAP.md
+docs/VPS-HERMES-RUNBOOK.md
+docs/HERMES-SOUL-BASELINE.md

@@ -1,0 +1,125 @@
+:root {
+  font-family: "Segoe UI Variable Text", Aptos, "Segoe UI", ui-rounded, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-synthesis: weight style;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html[data-desktop="macos"] {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif;
+}
+
+html[data-desktop="macos"] .sidebar-topbar,
+html[data-desktop="macos"] .conversation-header,
+html[data-desktop="macos"] .details-head {
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html[data-desktop="macos"] button,
+html[data-desktop="macos"] input,
+html[data-desktop="macos"] select,
+html[data-desktop="macos"] textarea,
+html[data-desktop="macos"] a,
+html[data-desktop="macos"] [role="button"],
+html[data-desktop="macos"] [role="tab"] {
+  -webkit-app-region: no-drag;
+}
+
+html[data-desktop="macos"] .sidebar-topbar {
+  min-height: 54px;
+  padding-left: 78px;
+}
+
+html[data-desktop="macos"] .settings-backdrop,
+html[data-desktop="macos"] .first-run-backdrop {
+  padding-top: max(54px, env(safe-area-inset-top));
+}
+
+html[data-desktop="windows"] .sidebar-topbar,
+html[data-desktop="windows"] .conversation-header,
+html[data-desktop="windows"] .details-head {
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html[data-desktop="windows"] button,
+html[data-desktop="windows"] input,
+html[data-desktop="windows"] select,
+html[data-desktop="windows"] textarea,
+html[data-desktop="windows"] a,
+html[data-desktop="windows"] [role="button"],
+html[data-desktop="windows"] [role="tab"] {
+  -webkit-app-region: no-drag;
+}
+
+.window-controls {
+  display: none;
+}
+
+html[data-desktop="windows"] .window-controls {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  z-index: 150;
+  top: 6px;
+  right: 8px;
+  height: 36px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 11px;
+  background: rgb(22 22 24 / 92%);
+  user-select: none;
+}
+
+html[data-desktop="windows"] .window-control {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #98989f;
+  box-shadow: none;
+  cursor: default;
+}
+
+html[data-desktop="windows"] .window-control:hover {
+  background: rgb(255 255 255 / 9%);
+  color: #f2f2f4;
+}
+
+html[data-desktop="windows"] .window-control.close:hover {
+  background: #c9414d;
+  color: #fff;
+}
+
+html[data-desktop="windows"] .window-control:focus-visible {
+  outline: 2px solid rgb(10 132 255 / 70%);
+  outline-offset: 1px;
+}
+
+html[data-desktop="windows"] .shell.details-closed .conversation-header {
+  padding-right: 132px;
+}
+
+html[data-desktop="windows"] .shell.details-open .details-head {
+  padding-right: 132px;
+}
+
+html[data-desktop="windows"] .settings-backdrop {
+  padding-top: 54px;
+}
+
+html[data-desktop="windows"] .first-run-backdrop {
+  padding-top: max(66px, env(safe-area-inset-top));
+}

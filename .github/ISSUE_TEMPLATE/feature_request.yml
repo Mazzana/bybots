@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a focused improvement to the product or Hermes integration.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the observable result rather than a specific implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: hermes
+    attributes:
+      label: Hermes dependency
+      description: Mention any Hermes API, profile, session, model, MCP, or cron capability involved.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I have removed secrets and private data from this request.
+          required: true
+        - label: I have checked that an existing issue does not already cover this request.
+          required: true

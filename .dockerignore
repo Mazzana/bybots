@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.env.*
+.playwright-cli
+dist
+dist-electron
+dist-server
+node_modules
+output
+playwright-report
+release
+test-results
+design-qa-*.png
+docs/VPS-HERMES-RUNBOOK.md
+docs/HERMES-SOUL-BASELINE.md
