@@ -22,6 +22,20 @@ function fixture(journal?: RelayJournalStore) {
 }
 
 describe("Native Hermes Bot relay", () => {
+  it("preserves an uncertain target outcome when the error reply itself needs retrying", async () => {
+    const { relay, localRequest, remoteRequest } = fixture();
+    const local = localRequest.getMockImplementation()!, remote = remoteRequest.getMockImplementation()!;
+    let replyOffline = true;
+    localRequest.mockImplementation((method, ...args) => method === "bot_relay.reply" && replyOffline ? Promise.reject(new Error("offline")) : local(method, ...args));
+    remoteRequest.mockImplementation((method, ...args) => method === "bot_relay.deliver" ? Promise.reject(new Error("socket closed after acceptance")) : remote(method, ...args));
+    await relay.tick(true); await relay.settle();
+    expect(relay.activity[0].status).toBe("reply-pending");
+    replyOffline = false;
+    await relay.tick(); await relay.settle();
+    expect(relay.activity[0].status).toBe("uncertain");
+    expect(remoteRequest.mock.calls.filter(([method]) => method === "bot_relay.deliver")).toHaveLength(1);
+    relay.close();
+  });
   it("does not submit the same reply concurrently while the sender is slow", async () => {
     const { relay, localRequest } = fixture();
     const original = localRequest.getMockImplementation()!;

@@ -53,6 +53,11 @@ All notable changes to this project will be documented in this file. The project
 
 ### Fixed
 
+- A target socket closing after relay submission now keeps the delivery outcome
+  uncertain, including after returning an error to the source or retrying that
+  error reply. It is never mislabeled as a confirmed failure or forwarded again.
+  Real-Bridge WebSocket fault tests cover reconnecting reply delivery, journal
+  deduplication across restart, persistent pause and healthy-gateway isolation.
 - Gateway status buttons now expose a subtle hover and keyboard-focus state,
   matching Settings while retaining 44px touch targets.
 - Settings now use one additive gateway-management flow instead of displaying

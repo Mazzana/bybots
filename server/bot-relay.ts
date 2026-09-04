@@ -4,6 +4,7 @@ import type { RelayJournalStore } from "./relay-journal";
 
 export interface RelayConnection { id: string; label: string; gateway: HermesGateway }
 export interface RelayActivity { id: string; source: string; target: string; profile: string; status: "delivering" | "replied" | "failed" | "reply-pending" | "uncertain"; at: number }
+interface PendingReply { sender: RelayConnection; payload: Record<string, unknown>; at: number; activity: RelayActivity; outcome: "replied" | "failed" | "uncertain" }
 const envelopeSchema = z.object({ id: z.string().regex(/^[a-f0-9]{32}$/), target_connection: z.string().max(64), target_profile: z.string().min(1).max(128), message: z.string().min(1).max(16_200) });
 const profilesSchema = z.object({ profiles: z.array(z.object({ name: z.string().min(1).max(128), handle: z.string().max(128).optional(), display_name: z.string().optional(), description: z.string().optional(), ui_meta: z.record(z.string(), z.unknown()).optional() })).max(1000) });
 // Mirrors Hermes: 120s lock wait + two 600s attempts + 180s settlement margin.
@@ -20,7 +21,7 @@ export class BotRelay {
   private readonly subscriptions = new Map<HermesGateway, () => void>();
   private readonly rosters = new Map<string, Array<Record<string, unknown>>>();
   private readonly seen = new Set<string>();
-  private readonly pending = new Map<string, { sender: RelayConnection; payload: Record<string, unknown>; at: number; activity: RelayActivity }>();
+  private readonly pending = new Map<string, PendingReply>();
   private readonly deliveries = new Set<Promise<void>>();
   private readonly replying = new Set<string>();
   private readonly records: RelayActivity[] = [];
@@ -135,11 +136,14 @@ export class BotRelay {
     await this.persist();
     const target = this.connections().find((row) => row.id === envelope.target_connection && row.id !== sender.id);
     let payload: Record<string, unknown>;
+    let attempted = false;
+    let outcome: PendingReply["outcome"] = "replied";
     try {
       if (!this.current(sender) || !target) throw new Error("Target gateway is disconnected or Bot relay is disabled.");
       if (!withinRate) { this.rateLimited = true; throw new Error("Relay rate limit reached"); }
       if (!withinConcurrency) throw new Error("Bot relay is busy. Message was not delivered.");
       if (!this.rosters.get(target.id)?.some((row) => row.profile === envelope.target_profile)) throw new Error("Target Bot is not in the shared gateway roster.");
+      attempted = true;
       const response = await target.gateway.request<{ reply?: unknown }>("bot_relay.deliver", { profile: envelope.target_profile, message: envelope.message }, RELAY_DELIVER_TIMEOUT_MS);
       if (typeof response?.reply !== "string") throw new Error("Invalid relay response. Delivery outcome is unknown; do not resend blindly.");
       payload = { id: envelope.id, reply: response.reply };
@@ -147,21 +151,24 @@ export class BotRelay {
       // Forward structured reasons, not arbitrary gateway errors which can contain credentials.
       const reason = (cause as { data?: { reason?: unknown } })?.data?.reason;
       payload = { id: envelope.id, error: "ByBots could not confirm delivery. Check both gateways before resending.", ...(typeof reason === "string" && /^[a-z_]{1,64}$/.test(reason) ? { reason } : {}) };
-      activity.status = "failed";
+      // Once submitted, a disconnected socket or invalid reply cannot prove
+      // that Hermes did not accept the turn. Never turn uncertainty into failure.
+      outcome = attempted ? "uncertain" : "failed";
+      activity.status = outcome;
     }
     if (!this.current(sender) || this.pending.size >= 128) { activity.status = "uncertain"; await this.persist(); return; }
-    const pending = { sender, payload, at: Date.now(), activity };
+    const pending = { sender, payload, at: Date.now(), activity, outcome };
     this.pending.set(key, pending);
     await this.postReply(key, pending);
   }
 
-  private async postReply(key: string, pending: { sender: RelayConnection; payload: Record<string, unknown>; activity: RelayActivity }) {
+  private async postReply(key: string, pending: PendingReply) {
     if (this.replying.has(key)) return;
     this.replying.add(key);
     try {
       try {
         await pending.sender.gateway.request("bot_relay.reply", pending.payload);
-        pending.activity.status = pending.payload.error ? "failed" : "replied";
+        pending.activity.status = pending.outcome;
         this.pending.delete(key);
       } catch { pending.activity.status = "reply-pending"; }
       await this.persist();

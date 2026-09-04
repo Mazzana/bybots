@@ -129,6 +129,15 @@ restart, relay consent, failure replies and administrator-only management.
 Browser checks cover adding and connecting another gateway, enabling relay,
 and mobile containment. Fixtures do not call a language model.
 
+The fault-injection suite also uses actual WebSocket connections to isolated
+protocol fixtures. It closes the target socket after acceptance, closes the
+source socket before acknowledging a reply, restarts the Bridge with its saved
+journal, and interrupts one gateway while the other remains reachable. It
+verifies no target-turn replay, preserved uncertain outcomes, delayed reply
+return, persisted pause and recovery of the sidebar status without reconfiguring
+credentials. These are controlled socket failures and graceful restarts, not
+provider/network chaos testing or an abrupt operating-system crash.
+
 On 2026-09-05, a live local-to-remote and remote-to-local Bot Chat check passed:
 each source called `message_agent`, each receiving Bot produced the expected
 unique acknowledgement, and both relay records reached `replied`. The other
