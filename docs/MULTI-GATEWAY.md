@@ -37,11 +37,17 @@ it by default; you can still choose another gateway for each new Bot. This
 preference is stored by the Bridge and survives app restarts. It does not
 disconnect gateways, move Bots or conversations, change relay permissions, or
 switch the conversation you have open. Existing profile IDs and legacy connection
-endpoints keep their original routing. Bot imports still use the original gateway.
+endpoints keep their original routing. **Settings → Data → Destination gateway**
+selects where an archive is imported, with the main gateway preselected.
 If you remove the chosen additional gateway, the original connection becomes
 the default again. The original connection cannot currently be removed.
 
 ## Allow Bots to communicate
+
+Gateway indicators above **Settings** check authenticated reachability, not
+just saved credentials. One configured connection produces one indicator.
+Checks are refreshed every 20 seconds; a failed check never means a Bot was
+deleted. Clicking the indicators opens gateway settings.
 
 Enable **Allow Bot relay** on at least two gateways you trust. Each enabled
 gateway receives the other enabled gateways' Bot roster. A Bot running in
@@ -90,18 +96,30 @@ relay; normal conversation access is independent.
   is reachable again; ByBots never forwards from a disabled connection.
 - A **Gateway responded** status can mean a Bot Chat queue acknowledgement,
   not that the target Bot has completed its answer. Check the actual Bot Chat.
-- Delivery has a 25-minute client budget matching the upstream lock/retry
-  ceiling plus margin. ByBots never retries the target turn automatically;
-  only returning a known reply is retried for up to ten minutes in memory.
-  Hermes can apply its own retry policy inside a turn.
-- Activity is bounded to 50 metadata rows, and delivery deduplication is bounded
-  in memory. In-flight work/replies are not recovered durably after a Bridge
-  crash. Do not blindly resend an uncertain delivery. A concurrency limit of
-  16 bounds active forwards; it is not a cross-Bot loop or token-spend budget.
+- Delivery has a 25-minute client budget. ByBots never retries the target turn
+  automatically; only returning a known reply is retried for ten minutes in
+  memory. Hermes can apply its own retry policy inside a turn.
+- Intent is recorded atomically before forwarding. The private journal contains
+  routing IDs, timestamps and status, never message/reply text or credentials.
+  After a crash, incomplete records are shown as **Outcome uncertain** and are
+  never automatically forwarded again. Replies not returned before the crash
+  must be checked in Bot Chat; this is not exactly-once delivery or automatic
+  recovery of reply contents. The upstream destructive outbox drain and the
+  local journal are not a shared transaction: an interruption between drain
+  and local persistence can still lose a claimed envelope.
+- Activity shows the latest 50 records. The journal holds up to 4,096 records
+  without evicting deduplication keys; reaching capacity or a storage error
+  stops new forwarding. Do not delete the journal to retry an uncertain turn.
+- A rolling limit of 30 new forwards per ten minutes is shared by all gateways
+  and survives restarts, alongside a concurrency limit of 16. These limits
+  reduce runaway exchanges but are not a token-spend ceiling or complete
+  cross-Bot cycle detection.
+- **Pause all Bot relay** persists across restarts, stops new forwards and clears
+  reachable rosters without removing individual consent or disconnecting
+  gateways. Already accepted turns can continue; pause cannot recall them.
 - Group rooms currently require all members to use **one gateway**. Native
   Bot Chat relay works across gateways; mixed-gateway group orchestration does
-  not ship in this preview. Avatar-pet catalogs and archive imports still use
-  the primary gateway.
+  not ship in this preview. Avatar-pet catalogs still use the original gateway.
 
 ## Verification and remaining qualification
 

@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { z } from "zod";
 
 const entry = z.object({ id: z.string().regex(/^gw-[a-f0-9]{12}$/), label: z.string().trim().min(1).max(48), baseUrl: z.string().max(2048), relay: z.boolean() }).strict();
-const schema = z.object({ version: z.literal(1), primaryRelay: z.boolean(), defaultGatewayId: z.string().optional(), gateways: z.array(entry).max(8) }).strict()
+const schema = z.object({ version: z.literal(1), primaryRelay: z.boolean(), relayPaused: z.boolean().optional(), defaultGatewayId: z.string().optional(), gateways: z.array(entry).max(8) }).strict()
   .refine((value) => new Set(value.gateways.map((gateway) => gateway.id)).size === value.gateways.length)
   .refine((value) => !value.defaultGatewayId || value.defaultGatewayId === "primary" || value.gateways.some((gateway) => gateway.id === value.defaultGatewayId));
 export type GatewayRegistry = z.infer<typeof schema>;

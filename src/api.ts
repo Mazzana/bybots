@@ -54,6 +54,8 @@ function attachmentFilename(response: Response, fallback: string) {
 }
 
 export const api: BotsApi = {
+  getGatewayStatuses() { return request("/api/gateways/status"); },
+  setRelayPaused(paused) { return request("/api/hermes/connection/relay/pause", { method: "PUT", body: JSON.stringify({ paused }) }); },
   async listGateways() {
     const result = await request<import("./gateways").GatewayList>("/api/hermes/connection/gateways");
     if (!Array.isArray(result?.gateways) || !Array.isArray(result?.activity)) throw new Error("Gateway management is unavailable on this Bridge.");
@@ -90,8 +92,11 @@ export const api: BotsApi = {
     const response = await requestResponse(`/api/bots/${encodeURIComponent(name)}/export`, { method: "POST" });
     return { blob: await response.blob(), filename: attachmentFilename(response, `${name}.tar.gz`) };
   },
-  async importBot(archive: File, name?: string) {
-    const query = name?.trim() ? `?name=${encodeURIComponent(name.trim())}` : "";
+  async importBot(archive: File, name?: string, gatewayId?: string) {
+    const params = new URLSearchParams();
+    if (name?.trim()) params.set("name", name.trim());
+    if (gatewayId) params.set("gatewayId", gatewayId);
+    const query = params.size ? `?${params}` : "";
     return (await request<{ bot: Bot }>(`/api/bots/import${query}`, {
       method: "POST",
       headers: { "content-type": archive.type || "application/gzip" },

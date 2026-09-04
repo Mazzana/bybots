@@ -59,7 +59,7 @@ export interface HermesService {
   createBot(input: BotCreateInput): Promise<BotSummary>;
   deleteBot(name: string): Promise<void>;
   exportBot?(name: string): Promise<BotArchive>;
-  importBot?(data: Uint8Array, name?: string): Promise<BotSummary>;
+  importBot?(data: Uint8Array, name?: string, gatewayId?: string): Promise<BotSummary>;
   updateBotAvatar?(name: string, avatar: { shape?: string; color?: string; image?: string }): Promise<void>;
   listAvatarPets?(): Promise<AvatarPet[]>;
   getAvatarPetSprite?(slug: string): Promise<AvatarPetSprite>;
@@ -192,10 +192,12 @@ export function createApp({ hermes, chat, groups, connection, gateways, remoteTo
   app.get("/api/health", async () => ({ ok: true, apiVersion: BRIDGE_API_VERSION }));
   app.get("/api/access", async (request) => ({ role: requestRoles.get(request) || "admin" }));
   if (gateways) {
+    app.get("/api/gateways/status", async () => ({ gateways: await gateways.connectionStatuses() }));
     const gatewayId = (params: unknown) => z.object({ id: z.string().regex(/^(primary|gw-[a-f0-9]{12})$/) }).parse(params).id;
     const credentials = z.object({ baseUrl: z.string().trim().min(1).max(2048), token: z.string().max(4096).optional() }).strict();
     // All management routes intentionally share the existing administrator-only prefix.
-    app.get("/api/hermes/connection/gateways", async () => ({ gateways: await gateways.listGateways(), activity: gateways.relay.activity }));
+    app.get("/api/hermes/connection/gateways", async () => ({ gateways: await gateways.listGateways(), activity: gateways.relay.activity, safety: gateways.relaySafety }));
+    app.put("/api/hermes/connection/relay/pause", async (request) => { await gateways.setRelayPaused(z.object({ paused: z.boolean() }).strict().parse(request.body).paused); return { ok: true }; });
     app.post("/api/hermes/connection/gateways", async (request, reply) => reply.code(201).send(await gateways.addGateway(z.object({ label: z.string().trim().min(1).max(48), baseUrl: z.string().trim().min(1).max(2048) }).strict().parse(request.body))));
     app.get("/api/hermes/connection/gateways/:id", async (request) => ({ connection: await gateways.getConnection(gatewayId(request.params)) }));
     app.put("/api/hermes/connection/gateways/:id", async (request) => ({ connection: await gateways.updateConnection(credentials.parse(request.body), gatewayId(request.params)) }));
@@ -360,13 +362,14 @@ export function createApp({ hermes, chat, groups, connection, gateways, remoteTo
   }
   if (hermes.importBot) {
     app.post<{ Body: Buffer; Querystring: { name?: string } }>("/api/bots/import", { bodyLimit: MAX_BOT_ARCHIVE_BYTES }, async (request, reply) => {
-      const { name } = z.object({
+      const { name, gatewayId } = z.object({
+        gatewayId: z.string().regex(/^(primary|gw-[a-f0-9]{12})$/).optional(),
         name: z.string().trim().min(2).max(64).regex(/^[a-z0-9][a-z0-9-]*$/i).optional()
       }).parse(request.query);
       const archive = z.instanceof(Buffer)
         .refine((value) => value.length > 1 && value[0] === 0x1f && value[1] === 0x8b, "A gzip Hermes profile archive is required")
         .parse(request.body);
-      const bot = await hermes.importBot!(new Uint8Array(archive), name);
+      const bot = gatewayId ? await hermes.importBot!(new Uint8Array(archive), name, gatewayId) : await hermes.importBot!(new Uint8Array(archive), name);
       return reply.code(201).send({ bot });
     });
   }

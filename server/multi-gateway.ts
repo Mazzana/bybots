@@ -6,6 +6,7 @@ import { resolveLocalHermesSessionToken } from "./hermes-local-token";
 import type { GatewayRegistry, RegistryStore } from "./gateway-registry";
 import type { BotSummary } from "./hermes-client";
 import type { GroupRoom } from "./group-chat-service";
+import type { RelayJournalStore } from "./relay-journal";
 
 interface Entry { id: string; label: string; manager: HermesConnectionManager; relay: boolean }
 export interface GatewayView { id: string; label: string; isDefault: boolean; baseUrl: string; hasToken: boolean; authMode: string; requiresReauthentication?: boolean; relay: boolean; relayStatus: "disabled" | "checking" | "ready" | "unavailable" }
@@ -20,15 +21,40 @@ export class MultiGateway implements HermesConnectionService {
   private registry: GatewayRegistry = { version: 1, primaryRelay: false, gateways: [] };
   private mutation: Promise<unknown> = Promise.resolve();
   private oauthOwners = new Map<string, { id: string; baseUrl: string; at: number }>();
+  private health?: { at: number; rows: Array<{ id: string; label: string; isDefault: boolean; status: "connected" | "unavailable" | "auth-required" }> };
+  private healthRequest?: Promise<NonNullable<MultiGateway["health"]>["rows"]>;
+
+  connectionStatuses() {
+    if (this.health && Date.now() - this.health.at < 10_000) return Promise.resolve(this.health.rows);
+    if (this.healthRequest) return this.healthRequest;
+    this.healthRequest = Promise.all([...this.entries.values()].map(async (entry) => {
+      const connection = await entry.manager.getConnection();
+      let status: "connected" | "unavailable" | "auth-required" = "auth-required";
+      if (connection.hasToken && !connection.requiresReauthentication) {
+        try {
+          if (entry.manager.relayGateway) await entry.manager.relayGateway.request("profiles.list", { include_sessions: false }, 5_000);
+          else await entry.manager.hermes.listBots();
+          status = "connected";
+        } catch { status = "unavailable"; }
+      }
+      return { id: entry.id, label: entry.label, isDefault: entry.id === this.defaultGatewayId, status };
+    })).then((rows) => { this.health = { at: Date.now(), rows }; return rows; }).finally(() => { this.healthRequest = undefined; });
+    return this.healthRequest;
+  }
 
   constructor(readonly primary: HermesConnectionManager, private readonly store: RegistryStore, private readonly connectionPath: string,
-    private readonly factory = (id: string, baseUrl: string) => new HermesConnectionManager({ defaultConnection: { baseUrl, token: "" }, store: new FileHermesConnectionStore(`${connectionPath}.${id}.json`), resolveLocalToken: resolveLocalHermesSessionToken })) {
+    private readonly factory = (id: string, baseUrl: string) => new HermesConnectionManager({ defaultConnection: { baseUrl, token: "" }, store: new FileHermesConnectionStore(`${connectionPath}.${id}.json`), resolveLocalToken: resolveLocalHermesSessionToken }), journal?: RelayJournalStore) {
     this.entries.set("primary", { id: "primary", label: "Hermes", manager: primary, relay: false });
-    this.relay = new BotRelay(() => this.relayConnections());
+    this.relay = new BotRelay(() => this.relayConnections(), journal);
     this.hermes = new Proxy(primary.hermes, { get: (_target, method: string) => {
       if (method === "listBots") return () => this.listBots();
       if (method === "listMachines") return async () => (await this.partial(async (entry) => (await entry.manager.hermes.listMachines?.() || []).map((machine) => ({ ...machine, id: scoped(entry.id, machine.id), name: `${entry.label} · ${machine.name}` })))).flat();
-      if (["listAvatarPets", "getAvatarPetSprite", "importBot"].includes(method)) return Reflect.get(primary.hermes, method);
+      if (["listAvatarPets", "getAvatarPetSprite"].includes(method)) return Reflect.get(primary.hermes, method);
+      if (method === "importBot") return async (data: Uint8Array, name?: string, gatewayId = this.defaultGatewayId) => {
+        const entry = this.entry(gatewayId);
+        if (!entry.manager.hermes.importBot) throw new Error("This gateway does not support Bot imports");
+        return this.bot(entry, await entry.manager.hermes.importBot(data, name));
+      };
       if (method === "createBot") return async (input: { gatewayId?: string } & Record<string, unknown>) => {
         const { gatewayId = this.defaultGatewayId, ...fields } = input;
         const entry = this.entry(gatewayId);
@@ -87,6 +113,7 @@ export class MultiGateway implements HermesConnectionService {
       try { await manager.initialize(); } catch { /* Ask the user to connect this gateway again. */ }
       this.entries.set(saved.id, { ...saved, manager });
     }
+    await this.relay.initialize();
     this.relay.start();
   }
   private entry(id: string) {
@@ -125,7 +152,18 @@ export class MultiGateway implements HermesConnectionService {
   }
   private async listBots() { return (await this.partial(async (entry) => (await entry.manager.hermes.listBots()).map((bot) => this.bot(entry, bot)))).flat(); }
   private relayConnections(): RelayConnection[] {
+    if (this.registry.relayPaused) return [];
     return [...this.entries.values()].flatMap((entry) => entry.relay && entry.manager.relayGateway ? [{ id: entry.id, label: entry.label, gateway: entry.manager.relayGateway }] : []);
+  }
+  get relaySafety() { return { paused: Boolean(this.registry.relayPaused), journalError: this.relay.journalError, journalFull: this.relay.journalFull, rateLimited: this.relay.rateLimited }; }
+  setRelayPaused(paused: boolean) {
+    return this.serialize(async () => {
+      const previous = this.relayConnections();
+      const next = { ...this.registry, relayPaused: paused };
+      await this.store.save(next); this.registry = next;
+      if (paused) await Promise.all(previous.map((connection) => this.relay.revoke(connection)));
+      else await this.relay.tick(true);
+    });
   }
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.mutation.then(operation);

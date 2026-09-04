@@ -5,6 +5,7 @@ import { createApp } from "./app";
 import { defaultConfigFile, FileHermesConnectionStore, HermesConnectionManager } from "./hermes-connection";
 import { FileGatewayRegistry } from "./gateway-registry";
 import { MultiGateway } from "./multi-gateway";
+import { FileRelayJournal } from "./relay-journal";
 import { resolveLocalHermesSessionToken } from "./hermes-local-token";
 import packageJson from "../package.json";
 
@@ -64,7 +65,7 @@ export async function startBridge(options: BridgeRuntimeOptions = {}): Promise<B
   await connectionManager.initialize();
 
   const configPath = options.configFile ?? defaultConfigFile();
-  const gateways = new MultiGateway(connectionManager, new FileGatewayRegistry(`${configPath}.gateways.json`), configPath);
+  const gateways = new MultiGateway(connectionManager, new FileGatewayRegistry(`${configPath}.gateways.json`), configPath, undefined, new FileRelayJournal(`${configPath}.relay.json`));
   try { await gateways.initialize(); } catch (cause) { gateways.close(); throw cause; }
   const bridge = createApp({
     hermes: gateways.hermes,

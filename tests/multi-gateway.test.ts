@@ -28,6 +28,41 @@ function fixture() {
 }
 
 describe("Multi-gateway isolation", () => {
+  it("probes authenticated reachability independently and exposes no connection secrets", async () => {
+    const { hub, runtimes } = fixture();
+    const remote = await hub.addGateway({ label: "Work", baseUrl: "https://work.example.test" });
+    vi.mocked(runtimes.get(remote.id)!.hermes.listBots).mockRejectedValue(new Error("offline secret"));
+    const rows = await hub.connectionStatuses();
+    expect(rows.map((row) => row.status)).toEqual(["connected", "unavailable"]);
+    expect(JSON.stringify(rows)).not.toMatch(/secret|baseUrl|token/);
+    await hub.connectionStatuses();
+    expect(runtimes.get("primary")!.hermes.listBots).toHaveBeenCalledOnce();
+  });
+  it("routes imports to the default or explicitly selected gateway and scopes the result", async () => {
+    const { hub, runtimes } = fixture();
+    const remote = await hub.addGateway({ label: "Work", baseUrl: "https://work.example.test" });
+    const originalImport = vi.fn().mockResolvedValue({ name: "new", system: false });
+    const remoteImport = vi.fn().mockResolvedValue({ name: "new", system: false });
+    runtimes.get("primary")!.hermes.importBot = originalImport;
+    runtimes.get(remote.id)!.hermes.importBot = remoteImport;
+    await hub.setDefaultGateway(remote.id);
+    const archive = new Uint8Array([31, 139]);
+    expect(await hub.hermes.importBot!(archive, "new")).toMatchObject({ name: `${remote.id}::new`, gatewayId: remote.id });
+    await hub.hermes.importBot!(archive, "new", "primary");
+    expect(originalImport).toHaveBeenCalledWith(archive, "new");
+    expect(remoteImport).toHaveBeenCalledOnce();
+    await expect(hub.hermes.importBot!(archive, "new", "gw-000000000000")).rejects.toThrow("Unknown gateway");
+  });
+  it("persists the global pause without clearing individual consent or credentials", async () => {
+    const { hub, store } = fixture();
+    await hub.setRelay("primary", true);
+    await hub.setRelayPaused(true);
+    expect(hub.relaySafety.paused).toBe(true);
+    expect(store.save).toHaveBeenLastCalledWith(expect.objectContaining({ relayPaused: true, primaryRelay: true }));
+    expect((await hub.listGateways())[0]).toMatchObject({ hasToken: true, relay: true });
+    await hub.setRelayPaused(false);
+    expect(hub.relaySafety.paused).toBe(false);
+  });
   it("persists the default without changing existing routing, sessions or relay consent", async () => {
     const { hub, runtimes, store } = fixture();
     const remote = await hub.addGateway({ label: "Work", baseUrl: "https://work.example.test" });
@@ -107,6 +142,10 @@ describe("Multi-gateway isolation", () => {
     for (const role of ["operator", "viewer"]) {
       const response = await app.inject({ method: "GET", url: "/api/hermes/connection/gateways", headers: { authorization: `Bearer ${role}-secret` } });
       expect(response.statusCode).toBe(403);
+      expect((await app.inject({ method: "PUT", url: "/api/hermes/connection/relay/pause", headers: { authorization: `Bearer ${role}-secret` }, payload: { paused: true } })).statusCode).toBe(403);
+      const statuses = await app.inject({ method: "GET", url: "/api/gateways/status", headers: { authorization: `Bearer ${role}-secret` } });
+      expect(statuses.statusCode).toBe(200);
+      expect(statuses.body).not.toMatch(/baseUrl|secret|authMode/);
       expect((await app.inject({ method: "PUT", url: `/api/hermes/connection/gateways/${remote.id}/default`, headers: { authorization: `Bearer ${role}-secret` } })).statusCode).toBe(403);
     }
     expect((await app.inject({ method: "PUT", url: `/api/hermes/connection/gateways/${remote.id}/default`, headers: { authorization: "Bearer admin-secret" } })).statusCode).toBe(200);

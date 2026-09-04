@@ -92,3 +92,13 @@ existing button styles. From the additive-settings baseline of 598,171 bytes,
 total JavaScript rises to 599,686 bytes (about 1.5 KB). CSS is 86,828 bytes.
 The total JavaScript limit moves from 585 to 586 KiB; CSS and initial-entry
 limits stay unchanged.
+
+## Gateway status and relay safeguards
+
+The footer and Settings share gateway status UI. Authenticated reachability
+checks run every 20 seconds per mounted view and share a 10-second Bridge cache
+and in-flight request; no credentials or endpoint URLs are exposed by this API.
+The relay journal and rate limiter run only in the Bridge. Import destination
+controls reuse the existing select component. Total JavaScript is 603,592 bytes
+and CSS is 87,576 bytes, up 3.9 KB and 748 bytes respectively. Reviewed budgets
+are 590 KiB JavaScript and 86 KiB CSS; the entry limit is unchanged.

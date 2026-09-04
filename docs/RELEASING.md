@@ -28,6 +28,22 @@ remain release gates for the full updater.
 
 ## Development artifacts
 
+### Multi-gateway release gates
+
+Before tagging the 0.4 preview, record a real two-Hermes Bot Chat exchange in
+both directions, including gateway identities and whether the receiving Bot
+actually answered. A roster sync or queue acknowledgement alone is not success.
+Stop other desktop relays during qualification. Test expired OAuth, one offline
+gateway, restart recovery and persistent pause using isolated gateways; do not
+terminate users' production gateways to manufacture a failure.
+
+Automated protocol fixtures cover interrupted-intent deduplication, storage
+failure, rate limits and independent routing. They do not replace real-provider
+or packaged OAuth validation. macOS qualification, clean-machine install,
+upgrade/rollback, signing and notarization remain required for a stable release.
+The metadata journal deliberately cannot restore unreturned reply text or
+guarantee transactional recovery of a remotely drained outbox.
+
 Run `npm run package:win` on Windows to create an NSIS installer and a portable
 executable under `release/`. Local builds are intentionally allowed to remain
 unsigned and must not be presented as official ByBots releases.

@@ -59,6 +59,11 @@ test("core Bot journey restores a thread, changes model, retries chat, and trans
     if (path.endsWith("/events")) return route.abort();
     if (path === "/api/access") return json(route, { role: "admin" });
     if (path === "/api/diagnostics") return json(route, readyDiagnostics);
+    if (path === "/api/hermes/connection/gateways") return json(route, { gateways: [
+      { id: "primary", label: "Home", hasToken: true, isDefault: true },
+      { id: "gw-123456789abc", label: "Work", hasToken: true, isDefault: false }
+    ], activity: [] });
+    if (path === "/api/gateways/status") return json(route, { gateways: [{ id: "primary", label: "Home", status: "connected", isDefault: true }, { id: "gw-123456789abc", label: "Work", status: "connected", isDefault: false }] });
     if (path === "/api/machines") return json(route, { machines: [{ id: "local", name: "This device", kind: "local", status: "connected" }] });
     if (path === "/api/groups") return json(route, { groups: [] });
     if (path === "/api/bots" && request.method() === "GET") return json(route, { bots });
@@ -92,6 +97,7 @@ test("core Bot journey restores a thread, changes model, retries chat, and trans
     }
     if (path === "/api/bots/research/export") return route.fulfill({ status: 200, headers: { "content-type": "application/gzip", "content-disposition": "attachment; filename=\"research.tar.gz\"" }, body: Buffer.from([0x1f, 0x8b, 0x08]) });
     if (path === "/api/bots/import") {
+      expect(new URL(request.url()).searchParams.get("gatewayId")).toBe("gw-123456789abc");
       imported = true;
       return json(route, { bot: { name: "research-copy", title: "Research Copy", system: false } }, 201);
     }
@@ -128,6 +134,8 @@ test("core Bot journey restores a thread, changes model, retries chat, and trans
   expect((await downloadPromise).suggestedFilename()).toBe("research.tar.gz");
   await page.getByLabel("Hermes archive").setInputFiles({ name: "research.tar.gz", mimeType: "application/gzip", buffer: Buffer.from([0x1f, 0x8b, 0x08]) });
   await page.getByLabel("New technical name").fill("research-copy");
+  await expect(page.getByRole("combobox", { name: "Destination gateway" })).toHaveValue("primary");
+  await page.getByRole("combobox", { name: "Destination gateway" }).selectOption("gw-123456789abc");
   await page.getByRole("button", { name: "Import Bot" }).click();
   await expect(page.getByText("Research Copy was imported.")).toBeVisible();
   expect(imported).toBe(true);

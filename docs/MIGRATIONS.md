@@ -82,6 +82,15 @@ profile unless Hermes explicitly implements and documents that behavior.
 
 ## Rollback boundary
 
+The multi-gateway preview also owns `<connection-file>.gateways.json` and
+`<connection-file>.relay.json`. Back up both alongside the per-gateway session
+records. The registry adds optional main-gateway and relay-pause fields while
+reading older registries without them. Older preview builds use strict schemas
+and may reject these newer fields: rollback requires the matching pre-upgrade
+registry backup. Keep relay disabled on an older build that cannot honor the
+new intent journal, and retain that journal for the next forward upgrade.
+The journal contains no prompts or replies; it is not a conversation backup.
+
 Before an official upgrade, operators retain the previous signed installer and
 back up the application connection record plus Hermes-owned data using the
 Hermes procedure. Rolling back the application must not require rolling back

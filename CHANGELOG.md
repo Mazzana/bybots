@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file. The project
 
 ### Added
 
+- Authenticated gateway status indicators above Settings in the sidebar, with
+  one indicator per configured connection. Shared status labels distinguish
+  reachable gateways, missing authentication and unavailable connections.
+- Gateway-aware archive imports with the main gateway preselected.
+- Persistent metadata-only relay intent journal: interrupted exchanges become
+  uncertain and are not automatically forwarded again after a restart. Journal
+  errors or capacity exhaustion stop forwarding. A persisted global pause and
+  a rolling limit of 30 forwards per ten minutes bound new relay traffic.
 - Sidebar Bots are grouped by gateway with counts and gateway-name search.
   Administrators can choose a persistent main gateway in Settings, used by
   default for new Bots and displayed first. Existing Bot IDs, conversations,

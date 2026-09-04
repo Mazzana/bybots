@@ -229,6 +229,14 @@ button.brand:focus-visible { outline: 2px solid #d8d8dc; outline-offset: -2px; }
 .thread-row.active { background: var(--surface-selected); }
 
 .bot-thread-block { min-width: 0; }
+.sidebar-gateways { margin: 0; }
+.sidebar-footer .sidebar-gateways { padding-bottom: 2px; margin-bottom: 2px; border-bottom: 1px solid var(--border-subtle, #303033); max-height: 30vh; overflow-y: auto; }
+.sidebar-gateways button, .gateway-status-row { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 9px; border: 0; background: transparent; font-size: 12px; text-align: left; }
+.gateway-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gateway-status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.gateway-status i { width: 6px; height: 6px; border-radius: 50%; background: #a1a1aa; }
+.gateway-status.connected i { background: #73d8a3; }
+.gateway-status.unavailable i, .gateway-status.auth-required i { background: #f0b873; }
 .bot-gateway-section + .bot-gateway-section { margin-top: 12px; }
 .bot-gateway-heading { display: flex; align-items: center; gap: 8px; padding: 6px 9px; color: #a1a1aa; font-size: 12px; }
 .bot-gateway-heading h3 { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: inherit; font-weight: 600; }

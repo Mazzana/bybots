@@ -24,7 +24,19 @@ export function BotTransferPanel({ api, bots, role, onImported }: BotTransferPan
   const [working, setWorking] = useState<"export" | "import" | "">("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [gateways, setGateways] = useState<import("./gateways").GatewayView[]>([]);
+  const [gatewayId, setGatewayId] = useState("");
   const canTransfer = role === "admin" && Boolean(api.exportBot && api.importBot);
+  useEffect(() => {
+    if (!canTransfer || !api.listGateways) return;
+    let active = true;
+    api.listGateways().then((result) => {
+      if (!active) return;
+      setGateways(result.gateways);
+      setGatewayId(result.gateways.find((gateway) => gateway.isDefault)?.id || result.gateways[0]?.id || "");
+    }).catch((cause) => { if (active) setError(formatError(cause)); });
+    return () => { active = false; };
+  }, [api, canTransfer, formatError]);
 
   useEffect(() => {
     if (!bots.some((bot) => bot.name === exportName)) setExportName(bots[0]?.name || "");
@@ -56,14 +68,14 @@ export function BotTransferPanel({ api, bots, role, onImported }: BotTransferPan
 
   async function upload(event: React.FormEvent) {
     event.preventDefault();
-    if (!api.importBot || !archive || !canTransfer) return;
+    if (!api.importBot || !archive || !canTransfer || (api.listGateways && !gatewayId)) return;
     setWorking("import");
     setError("");
     setSuccess("");
     try {
       if (archive.size === 0) throw new Error(t("Choose a non-empty Hermes archive."));
       if (archive.size > MAX_ARCHIVE_BYTES) throw new Error(t("The archive must be 25 MB or smaller."));
-      const bot = await api.importBot(archive, importName.trim() || undefined);
+      const bot = gatewayId ? await api.importBot(archive, importName.trim() || undefined, gatewayId) : await api.importBot(archive, importName.trim() || undefined);
       onImported(bot);
       setArchive(null);
       setImportName("");
@@ -90,9 +102,10 @@ export function BotTransferPanel({ api, bots, role, onImported }: BotTransferPan
     <form className="transfer-card surface-card" onSubmit={upload}>
       <span className="transfer-icon"><Upload size={19} /></span>
       <div className="transfer-copy"><strong>{t("Import a Bot")}</strong><p>{t("Restore a Hermes profile from a .tar.gz archive.")}</p></div>
+      {api.listGateways && <FormField label={t("Destination gateway")}><SelectControl value={gatewayId} disabled={!canTransfer || Boolean(working)} onChange={(event) => setGatewayId(event.target.value)}>{!gatewayId && <option value="">{t("Checking connection…")}</option>}{gateways.map((gateway) => <option key={gateway.id} value={gateway.id} disabled={!gateway.hasToken}>{gateway.label}</option>)}</SelectControl></FormField>}
       <FormField className="archive-picker" label={t("Hermes archive")} help={archive ? archive.name : t("Maximum 25 MB")}><input aria-label={t("Hermes archive")} type="file" accept=".tar.gz,.tgz,application/gzip,application/x-gzip" disabled={!canTransfer || Boolean(working)} onChange={(event) => setArchive(event.target.files?.[0] || null)} /></FormField>
       <FormField label={t("New technical name")}><input aria-label={t("New technical name")} value={importName} disabled={!canTransfer || Boolean(working)} onChange={(event) => setImportName(event.target.value)} placeholder={t("Optional · keep archive name")} pattern="[A-Za-z0-9][A-Za-z0-9-]{1,63}" /></FormField>
-      <button type="submit" disabled={!canTransfer || !archive || Boolean(working)}><Upload size={16} />{working === "import" ? t("Importing…") : t("Import Bot")}</button>
+      <button type="submit" disabled={!canTransfer || !archive || Boolean(working) || Boolean(api.listGateways && !gatewayId)}><Upload size={16} />{working === "import" ? t("Importing…") : t("Import Bot")}</button>
     </form>
 
     <FeedbackState tone="note" className="transfer-note" icon={<Archive size={18} />}>{t("Hermes removes credential files and redacts secret-shaped text. Archives can still contain private conversations and must be handled as sensitive data.")}</FeedbackState>

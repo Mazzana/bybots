@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { AlertTriangle, Archive, ArrowRight, ArrowUp, Bot as BotIcon, CalendarClock, ChevronLeft, ChevronRight, CirclePlus, FileText, Paperclip, Pencil, Plus, Reply, RotateCcw, Search, Settings, ShieldCheck, Users, X } from "lucide-react";
 import { BotAvatar } from "./BotAvatar";
 import { BotIdentity } from "./BotIdentity";
+import { GatewayStatuses } from "./GatewayStatuses";
 import { getBotDisplayName } from "./botDisplayName";
 import { BotAppearancePicker } from "./BotAppearancePicker";
 import { DialogActions, DialogShell } from "./Dialog";
@@ -192,7 +193,7 @@ export interface BotsApi {
   createBot(input: BotCreateInput): Promise<Bot>;
   deleteBot(name: string): Promise<void>;
   exportBot?(name: string): Promise<BotArchiveDownload>;
-  importBot?(archive: File, name?: string): Promise<Bot>;
+  importBot?(archive: File, name?: string, gatewayId?: string): Promise<Bot>;
   updateBotAvatar?(name: string, avatar: BotAvatarValue): Promise<void>;
   listAvatarPets?(): Promise<AvatarPet[]>;
   getBotConfiguration?(name: string): Promise<BotConfiguration>;
@@ -221,7 +222,9 @@ export interface BotsApi {
   listMachines?(): Promise<HermesMachine[]>;
   getHermesConnection?(): Promise<HermesConnection>;
   listGateways?(): Promise<import("./gateways").GatewayList>;
+  getGatewayStatuses?(): Promise<{ gateways: import("./gateways").GatewayStatus[] }>;
   setDefaultGateway?(id: string): Promise<unknown>;
+  setRelayPaused?(paused: boolean): Promise<unknown>;
   addGateway?(input: { label: string; baseUrl: string }): Promise<{ id: string }>;
   removeGateway?(id: string): Promise<unknown>;
   setGatewayRelay?(id: string, relay: boolean): Promise<unknown>;
@@ -1503,7 +1506,7 @@ export function App({ api }: { api: BotsApi }) {
           {normalizedSearch && visibleBots.length === 0 && visibleGroups.length === 0 && visibleRecentThreads.length === 0 ? <p className="no-results">{t("No conversation matches “{query}”.", { query: searchQuery })}</p> : null}
         </div>
 
-        <div className="sidebar-footer"><button ref={settingsButtonRef} type="button" aria-label={t("Settings")} onClick={() => openSettings()}><Settings size={18} /><span>{t("Settings")}</span></button><div className="account-row"><span className="account-avatar">B</span><span><strong>{accessLoading ? t("Checking access…") : accessError ? t("Access unavailable") : currentUserLabel}</strong><small><i className={diagnostics?.hermes.status === "error" || diagnosticsError ? "offline" : diagnostics?.hermes.status === "warning" ? "warning" : ""} /> {diagnosticsLoading ? t("Checking connection…") : diagnosticsError || !diagnostics ? t("Status unavailable") : diagnostics.hermes.status === "error" ? t("Hermes unavailable") : diagnostics.hermes.status === "warning" ? t("Hermes needs attention") : t("Hermes connected")}</small></span></div></div>
+        <div className="sidebar-footer"><GatewayStatuses api={api} onOpen={() => openSettings("hermes")} /><button ref={settingsButtonRef} type="button" aria-label={t("Settings")} onClick={() => openSettings()}><Settings size={18} /><span>{t("Settings")}</span></button><div className="account-row"><span className="account-avatar">B</span><span><strong>{accessLoading ? t("Checking access…") : accessError ? t("Access unavailable") : currentUserLabel}</strong>{!api.getGatewayStatuses && <small><i className={diagnostics?.hermes.status === "error" || diagnosticsError ? "offline" : diagnostics?.hermes.status === "warning" ? "warning" : ""} /> {diagnosticsLoading ? t("Checking connection…") : diagnosticsError || !diagnostics ? t("Status unavailable") : diagnostics.hermes.status === "error" ? t("Hermes unavailable") : diagnostics.hermes.status === "warning" ? t("Hermes needs attention") : t("Hermes connected")}</small>}</span></div></div>
       </aside>
 
       <section className="content" aria-label={t("Conversation")} aria-hidden={firstRun || undefined} inert={firstRun || undefined}>

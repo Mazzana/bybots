@@ -11,6 +11,13 @@ export const LANGUAGE_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: LanguagePreference; label: string }>;
 
 export const french: Record<string, string> = {
+  "Outcome uncertain — check Bot Chat before resending": "Résultat incertain — vérifiez Bot Chat avant de renvoyer",
+  "Pause all Bot relay": "Suspendre tous les relais entre Bots",
+  "Stops new forwards without disconnecting gateways. Already accepted Bot turns may continue.": "Arrête les nouveaux transferts sans déconnecter les gateways. Les tours déjà acceptés peuvent continuer.",
+  "Relay stopped: its safety journal needs attention. No messages will be resent automatically.": "Relais arrêté : son journal de sécurité nécessite une vérification. Aucun message ne sera renvoyé automatiquement.",
+  "Relay cooling down: at most 30 forwards per 10 minutes across all gateways.": "Relais en pause temporaire : 30 transferts maximum par tranche de 10 minutes, toutes gateways confondues.",
+  "Gateway connections": "Connexions aux gateways",
+  "Destination gateway": "Gateway de destination",
   "Main gateway": "Principale",
   "Set as main gateway": "Définir comme principale",
   "The main gateway is selected for new Bots. Changing it does not move existing Bots or disconnect other gateways.": "La gateway principale est présélectionnée pour les nouveaux Bots. Ce choix ne déplace pas les Bots existants et ne déconnecte pas les autres gateways.",

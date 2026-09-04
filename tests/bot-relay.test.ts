@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { BotRelay, RELAY_DELIVER_TIMEOUT_MS, type RelayConnection } from "../server/bot-relay";
 import type { HermesGateway } from "../server/hermes-gateway";
+import type { RelayJournalStore } from "../server/relay-journal";
 
 const envelope = { id: "a".repeat(32), target_connection: "remote", target_profile: "writer", message: "Message from 🤖 planner (@planner): Please review this." };
-function fixture() {
+function fixture(journal?: RelayJournalStore) {
   const request = (id: string) => vi.fn().mockImplementation(async (method: string) => {
     if (method === "profiles.list") return { profiles: [{ name: "writer", handle: "editor" }] };
     if (method === "bot_relay.outbox.drain") return { envelopes: id === "local" ? [envelope] : [] };
@@ -16,11 +17,49 @@ function fixture() {
     { id: "remote", label: "Work", gateway: { request: remoteRequest, subscribe: () => () => {} } as unknown as HermesGateway }
   ];
   let connections = rows;
-  const relay = new BotRelay(() => connections);
+  const relay = new BotRelay(() => connections, journal);
   return { relay, localRequest, remoteRequest, setConnections: (next: RelayConnection[]) => { connections = next; }, rows };
 }
 
 describe("Native Hermes Bot relay", () => {
+  it("does not submit the same reply concurrently while the sender is slow", async () => {
+    const { relay, localRequest } = fixture();
+    const original = localRequest.getMockImplementation()!;
+    let complete!: () => void;
+    localRequest.mockImplementation((method, ...args) => method === "bot_relay.reply" ? new Promise((resolve) => { complete = () => resolve({ ok: true }); }) : original(method, ...args));
+    await relay.tick(true);
+    await vi.waitFor(() => expect(complete).toBeDefined());
+    await relay.tick();
+    expect(localRequest.mock.calls.filter(([method]) => method === "bot_relay.reply")).toHaveLength(1);
+    complete(); await relay.settle();
+    expect(relay.activity[0].status).toBe("replied");
+    relay.close();
+  });
+  it("restores interrupted intents as uncertain and never repeats their target turn", async () => {
+    const journal: RelayJournalStore = { load: vi.fn().mockResolvedValue([{ id: envelope.id, source: "local", target: "remote", profile: "writer", status: "delivering", at: Date.now() }]), save: vi.fn().mockResolvedValue(undefined) };
+    const { relay, remoteRequest } = fixture(journal);
+    await relay.initialize(); await relay.tick(true); await relay.settle();
+    expect(relay.activity[0].status).toBe("uncertain");
+    expect(remoteRequest.mock.calls.some(([method]) => method === "bot_relay.deliver")).toBe(false);
+    expect(JSON.stringify(vi.mocked(journal.save).mock.calls)).not.toContain(envelope.message);
+    relay.close();
+  });
+  it("fails closed before delivery when intent persistence fails", async () => {
+    const journal: RelayJournalStore = { load: async () => [], save: vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error("disk full")) };
+    const { relay, remoteRequest } = fixture(journal);
+    await relay.initialize(); await relay.tick(true); await relay.settle();
+    expect(relay.journalError).toBe(true);
+    expect(remoteRequest.mock.calls.some(([method]) => method === "bot_relay.deliver")).toBe(false);
+    relay.close();
+  });
+  it("stops draining at the persistent 30-forward rolling limit", async () => {
+    const journal: RelayJournalStore = { load: async () => Array.from({ length: 30 }, (_, i) => ({ id: i.toString(16).padStart(32, "0"), source: "local", target: "remote", profile: "writer", status: "replied", at: Date.now() })), save: async () => {} };
+    const { relay, localRequest } = fixture(journal);
+    await relay.initialize(); await relay.tick(true);
+    expect(relay.rateLimited).toBe(true);
+    expect(localRequest.mock.calls.some(([method]) => method === "bot_relay.outbox.drain")).toBe(false);
+    relay.close();
+  });
   it("syncs other gateways, forwards the envelope, then returns the reply without duplicate delivery", async () => {
     const { relay, localRequest, remoteRequest } = fixture();
     await relay.tick(true); await relay.settle();

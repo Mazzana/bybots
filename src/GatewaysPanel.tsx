@@ -7,6 +7,7 @@ import { FormField } from "./FormField";
 import { SwitchControl } from "./SwitchControl";
 import { useI18n } from "./i18n";
 import { isLocalHermesUrl } from "./hermesConnectionUi";
+import { GatewayStatuses } from "./GatewayStatuses";
 
 export function GatewaysPanel({ api, role, onChanged, onDefaultChanged }: { api: BotsApi; role: AccessRole; onChanged(): void | Promise<void>; onDefaultChanged?(): void | Promise<void> }) {
   const { t, formatError } = useI18n();
@@ -42,9 +43,13 @@ export function GatewaysPanel({ api, role, onChanged, onDefaultChanged }: { api:
   const localUrl = defaultUrl && isLocalHermesUrl(defaultUrl) ? defaultUrl : undefined;
   const savedLocal = data.gateways.find((gateway) => gateway.baseUrl === localUrl);
   const status = { disabled: "Relay disabled", checking: "Checking relay…", ready: "Relay ready", unavailable: "Relay unavailable — check connection and Hermes version" };
-  const activityStatus = { delivering: "Delivering", replied: "Gateway responded", failed: "Delivery not confirmed", "reply-pending": "Waiting to return the reply" };
+  const activityStatus = { delivering: "Delivering", replied: "Gateway responded", failed: "Delivery not confirmed", "reply-pending": "Waiting to return the reply", uncertain: "Outcome uncertain — check Bot Chat before resending" };
   return <section className="multi-gateway-panel" aria-label={t("Multiple gateways")}>
     <h3>{t("Multiple gateways")}</h3>
+    <GatewayStatuses api={api} />
+    {api.setRelayPaused && <SwitchControl label={t("Pause all Bot relay")} description={t("Stops new forwards without disconnecting gateways. Already accepted Bot turns may continue.")} checked={Boolean(data.safety?.paused)} disabled={busy || !data.safety} onChange={(event) => void run(() => api.setRelayPaused!(event.target.checked))} />}
+    {(data.safety?.journalError || data.safety?.journalFull) && <FeedbackState tone="error">{t("Relay stopped: its safety journal needs attention. No messages will be resent automatically.")}</FeedbackState>}
+    {data.safety?.rateLimited && <FeedbackState tone="note">{t("Relay cooling down: at most 30 forwards per 10 minutes across all gateways.")}</FeedbackState>}
     <p className="settings-help">{t("Keep local and remote Hermes connected together. Each Bot keeps its own gateway, credentials and conversations.")}</p>
     <p className="settings-help">{t("Adding a gateway keeps your existing connections. Bot relay is a separate permission, not a connection switch.")}</p>
     <p className="settings-help">{t("The main gateway is selected for new Bots. Changing it does not move existing Bots or disconnect other gateways.")}</p>

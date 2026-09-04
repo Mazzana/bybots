@@ -103,7 +103,7 @@ Parameters beginning with `:` are percent-encoded path segments.
 | POST | `/api/bots` | admin | Create a Bot profile |
 | DELETE | `/api/bots/:name` | admin | Delete a non-system Bot |
 | POST | `/api/bots/:name/export` | admin | Download a bounded archive |
-| POST | `/api/bots/import?name=` | admin | Import a bounded archive |
+| POST | `/api/bots/import?name=&gatewayId=` | admin | Import a bounded archive to the selected or default gateway |
 | PATCH | `/api/bots/:name/avatar` | admin | Update Bot appearance |
 | GET | `/api/bots/:name/usage?days=` | viewer | Bot usage summary |
 | POST | `/api/bots/:name/mcp/:server/test` | admin | Test one installed MCP server and return a bounded tool inventory |
@@ -154,8 +154,22 @@ For a Hermes Bot-to-Bot delivery it currently has this bounded shape:
 The Bridge derives this compatibility metadata only from current or legacy
 Hermes 0.21 delivery prefixes inside the canonical `Bot Chat`. It strips the
 transport prefix from the displayed body. User messages in other threads are
-not reinterpreted. `gatewayId` and `gatewayLabel` are reserved optional identity
-fields for the planned multi-gateway relay and are not populated yet.
+not reinterpreted. In the multi-gateway preview, `gatewayId`, `gatewayLabel` and
+`gatewayDefault` identify a Bot's connection. Additional-gateway Bot IDs use
+`gatewayId::profile`; original unqualified IDs keep their original routing.
+
+### Multi-gateway preview additions
+
+- `GET /api/gateways/status` is available to authenticated viewer/operator/admin
+  roles and returns only connection IDs, labels, default flags and authenticated
+  reachability status. It does not expose URLs or credentials.
+- `GET /api/hermes/connection/gateways` is administrator-only and includes the
+  relay `safety` state and bounded metadata activity.
+- `PUT /api/hermes/connection/gateways/:id/default` persists the default for
+  new Bots and imports, without moving existing identities.
+- `PUT /api/hermes/connection/relay/pause` accepts `{ "paused": true }` (or
+  `false`) and requires administrator access. It stops new forwards, not turns
+  already accepted by Hermes.
 
 The canonical implementation and validation schemas remain in `server/app.ts`.
 Changing the public contract requires updating this document, focused API tests,
