@@ -1,0 +1,28 @@
+{
+  "language": "en",
+  "source": "Real ByBots UI; mocked API data; styled desktop scenery",
+  "command": "npm run screenshots",
+  "exports": [
+    {
+      "file": "byfinity-bots-bot-conversation.png",
+      "width": 1600,
+      "height": 1120,
+      "bytes": 459508,
+      "sha256": "2e404a5002bc0a22f6d39a665f1a5971d01f452c771a16342b0bda3789865c38"
+    },
+    {
+      "file": "byfinity-bots-desktop.png",
+      "width": 1600,
+      "height": 1120,
+      "bytes": 445089,
+      "sha256": "e73cafe51e1e15137b4881890e8ac6092b4086446dc8f8b8cc9db48c830068eb"
+    },
+    {
+      "file": "byfinity-bots-mobile.png",
+      "width": 430,
+      "height": 932,
+      "bytes": 49267,
+      "sha256": "31bbe117c3b9e0e44ad39724676d8506bb93555c0c60c8fa20a88bc6dd709444"
+    }
+  ]
+}

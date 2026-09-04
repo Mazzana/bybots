@@ -1,7 +1,9 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
+import { desktopScene } from "./screenshot-scene.mjs";
 
 const diagnostics = {
   checkedAt: "2026-09-03T18:00:00.000Z",
@@ -153,35 +155,35 @@ async function preparePage(browser, baseUrl, viewport, active) {
     timezoneId: "America/New_York"
   });
   await page.addInitScript((selected) => {
+    if (selected.scene) window.byBotsDesktop = { windowControls: { minimize() {}, toggleMaximize() {}, close() {} } };
     localStorage.setItem("byfinity.language", "en");
     localStorage.setItem("byfinity.lastActive", JSON.stringify(selected));
     if (selected.scope === "bot") localStorage.setItem("byfinity.lastThreads", JSON.stringify({ [selected.id]: selected.threadId }));
     localStorage.setItem("byfinity.preferences", JSON.stringify({ density: "comfortable", sendOnEnter: true, reduceMotion: true, usageDays: 30 }));
   }, active);
   await installApi(page);
-  await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: active.heading }).waitFor();
+  if (active.scene) await page.route(`${baseUrl}/__desktop-preview`, (route) => route.fulfill({ contentType: "text/html", body: desktopScene(baseUrl, active.scene) }));
+  await page.goto(active.scene ? `${baseUrl}/__desktop-preview` : baseUrl, { waitUntil: "networkidle" });
+  const app = active.scene ? page.frameLocator("iframe") : page;
+  await app.getByRole("heading", { name: active.heading }).waitFor();
+  if (active.scene) await app.getByRole("group", { name: "Window controls" }).waitFor();
   await page.evaluate(() => document.fonts.ready);
   return page;
 }
 
 async function captureDesktop(browser, baseUrl) {
-  const page = await preparePage(browser, baseUrl, { width: 1440, height: 900 }, { scope: "group", id: "leadership", heading: "Product launch" });
-  const details = page.getByRole("button", { name: /Show details/i });
-  if (await details.isVisible()) {
-    await details.click();
-    await page.getByRole("complementary", { name: "Details" }).waitFor();
-  }
+  const page = await preparePage(browser, baseUrl, { width: 1600, height: 1120 }, { scope: "group", id: "leadership", heading: "Product launch", scene: "team" });
   await page.screenshot({ path: resolve("docs", "screenshots", "byfinity-bots-desktop.png"), animations: "disabled" });
   await page.close();
 }
 
 async function captureBotConversation(browser, baseUrl) {
-  const page = await preparePage(browser, baseUrl, { width: 1440, height: 900 }, {
+  const page = await preparePage(browser, baseUrl, { width: 1600, height: 1120 }, {
     scope: "bot",
     id: "launch",
     threadId: "launch-command-center",
-    heading: "Launch Copilot"
+    heading: "Launch Copilot",
+    scene: "solo"
   });
   await page.screenshot({ path: resolve("docs", "screenshots", "byfinity-bots-bot-conversation.png"), animations: "disabled" });
   await page.close();
@@ -205,6 +207,19 @@ try {
   await captureBotConversation(browser, baseUrl);
   await captureDesktop(browser, baseUrl);
   await captureMobile(browser, baseUrl);
+  const exports = [];
+  for (const [file, width, height] of [
+    ["byfinity-bots-bot-conversation.png", 1600, 1120],
+    ["byfinity-bots-desktop.png", 1600, 1120],
+    ["byfinity-bots-mobile.png", 430, 932]
+  ]) {
+    const bytes = await readFile(resolve("docs", "screenshots", file));
+    if (bytes.readUInt32BE(16) !== width || bytes.readUInt32BE(20) !== height) throw new Error(`Unexpected screenshot dimensions: ${file}`);
+    exports.push({ file, width, height, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
+  }
+  await writeFile(resolve("docs", "screenshots", "manifest.json"), JSON.stringify({
+    language: "en", source: "Real ByBots UI; mocked API data; styled desktop scenery", command: "npm run screenshots", exports
+  }, null, 2) + "\n");
   console.log("Public screenshots generated in docs/screenshots");
 } finally {
   await browser.close();
