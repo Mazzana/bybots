@@ -21,6 +21,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_CONNECT_TIMEOUT_MS = 8_000;
 const DEFAULT_MAX_PENDING_REQUESTS = 128;
 const MAX_GATEWAY_FRAME_CHARS = 2_000_000;
+const MAX_OAUTH_TICKET_BYTES = 16_384;
 
 export interface GatewayEvent {
   type: string;
@@ -46,6 +47,8 @@ export class HermesGateway {
   private readonly maxPendingRequests: number;
   private socket: globalThis.WebSocket | null = null;
   private opening: Promise<void> | null = null;
+  private closed = false;
+  private ticketController: AbortController | null = null;
   private nextId = 1;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly subscribers = new Set<(event: GatewayEvent) => void>();
@@ -95,6 +98,7 @@ export class HermesGateway {
 
   async request<T>(method: string, params: Record<string, unknown> = {}, timeoutMs = this.requestTimeoutMs): Promise<T> {
     await this.connect();
+    if (this.closed) throw new Error("Hermes gateway closed");
     if (this.pending.size >= this.maxPendingRequests) {
       throw new HermesGatewayError("Hermes gateway has too many pending requests", { reason: "target_busy", retryable: true });
     }
@@ -124,6 +128,8 @@ export class HermesGateway {
 
   close(): void {
     const closed = new Error("Hermes gateway closed");
+    this.closed = true;
+    this.ticketController?.abort(closed);
     this.rejectPending(closed);
     this.subscribers.clear();
     if (this.socket && this.socket.readyState < 2) this.socket.close();
@@ -132,6 +138,7 @@ export class HermesGateway {
   }
 
   private connect(): Promise<void> {
+    if (this.closed) return Promise.reject(new Error("Hermes gateway closed"));
     if (this.socket?.readyState === 1) return Promise.resolve();
     if (this.opening) return this.opening;
 
@@ -143,6 +150,7 @@ export class HermesGateway {
 
   private async openSocket(): Promise<void> {
     const socketUrl = this.authMode === "session" ? this.socketUrl("token", this.token) : await this.oauthSocketUrl();
+    if (this.closed) throw new Error("Hermes gateway closed");
     const socket = this.socketFactory(socketUrl);
     this.socket = socket;
     socket.addEventListener("message", (event) => {
@@ -181,14 +189,74 @@ export class HermesGateway {
   }
 
   private async oauthSocketUrl() {
-    const response = await this.fetcher(`${this.baseUrl}/api/auth/ws-ticket`, {
-      method: "POST",
-      headers: { accept: "application/json", Authorization: `Bearer ${this.token}` }
+    const controller = new AbortController();
+    this.ticketController = controller;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let onAbort!: () => void;
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      onAbort = () => {
+        void reader?.cancel().catch(() => {});
+        reject(controller.signal.reason);
+      };
+      controller.signal.addEventListener("abort", onAbort, { once: true });
     });
-    if (!response.ok) throw new HermesGatewayError(`Hermes OAuth ticket request failed (${response.status})`);
-    const payload = await response.json() as { ticket?: unknown };
-    if (typeof payload.ticket !== "string" || !payload.ticket) throw new HermesGatewayError("Hermes did not return a WebSocket ticket");
-    return this.socketUrl("ticket", payload.ticket);
+    const timer = setTimeout(() => controller.abort(new HermesGatewayError(
+      `Hermes OAuth ticket request timed out after ${this.connectTimeoutMs} ms`,
+      { reason: "runtime_offline", retryable: true }
+    )), this.connectTimeoutMs);
+    timer.unref?.();
+    const invalid = () => new HermesGatewayError("Hermes returned an invalid WebSocket ticket");
+    const readTicket = async () => {
+      const response = await this.fetcher(`${this.baseUrl}/api/auth/ws-ticket`, {
+        method: "POST",
+        headers: { accept: "application/json", Authorization: `Bearer ${this.token}` },
+        redirect: "error",
+        signal: controller.signal
+      });
+      // A late response from a transport ignoring abort must never open a socket.
+      if (controller.signal.aborted || !response.ok) {
+        void response.body?.cancel().catch(() => {});
+        controller.signal.throwIfAborted();
+        throw new HermesGatewayError(`Hermes OAuth ticket request failed (${response.status})`, { phase: "oauth-ticket" }, response.status);
+      }
+      if (!response.body) throw invalid();
+      reader = response.body.getReader();
+      let size = 0;
+      const decoder = new TextDecoder();
+      let raw = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          controller.signal.throwIfAborted();
+          if (done) break;
+          size += value.byteLength;
+          if (size > MAX_OAUTH_TICKET_BYTES) throw invalid();
+          raw += decoder.decode(value, { stream: true });
+        }
+        raw += decoder.decode();
+        let payload: unknown;
+        try { payload = JSON.parse(raw); } catch { throw invalid(); }
+        if (!payload || typeof payload !== "object" || !("ticket" in payload)
+          || typeof payload.ticket !== "string" || !payload.ticket.trim()
+          || payload.ticket.length > 4_096) throw invalid();
+        return this.socketUrl("ticket", payload.ticket);
+      } finally {
+        void reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
+    };
+    try {
+      return await Promise.race([readTicket(), cancelled]);
+    } catch (error) {
+      if (controller.signal.aborted) throw controller.signal.reason;
+      if (error instanceof HermesGatewayError) throw error;
+      // Transport/parser errors must not echo credentials or response contents.
+      throw new HermesGatewayError("Unable to obtain a Hermes WebSocket ticket", { reason: "runtime_offline", retryable: true });
+    } finally {
+      clearTimeout(timer);
+      controller.signal.removeEventListener("abort", onAbort);
+      if (this.ticketController === controller) this.ticketController = null;
+    }
   }
 
   private onMessage(event: MessageEvent) {

@@ -78,6 +78,62 @@ describe("HermesGateway", () => {
     expect(socketUrl).toBe("wss://hermes.example.test/api/ws?ticket=single-use-ticket");
   });
 
+  it.each(["headers", "body"])("bounds a stalled OAuth ticket %s and cancels the transport", async (phase) => {
+    let signal: AbortSignal | undefined;
+    const cancel = vi.fn();
+    const socketFactory = vi.fn();
+    const gateway = new HermesGateway({
+      baseUrl: "https://hermes.example.test", token: "oauth-secret", authMode: "oauth", connectTimeoutMs: 10,
+      socketFactory,
+      fetcher: vi.fn().mockImplementation((_url, init) => {
+        signal = init.signal;
+        return phase === "headers" ? new Promise(() => {}) : Promise.resolve(new Response(new ReadableStream({ cancel })));
+      })
+    });
+    try {
+      await expect(gateway.request("profiles.list")).rejects.toThrow("OAuth ticket request timed out");
+      expect(signal?.aborted).toBe(true);
+      expect(socketFactory).not.toHaveBeenCalled();
+      if (phase === "body") expect(cancel).toHaveBeenCalledOnce();
+    } finally { gateway.close(); }
+  });
+
+  it("cancels shared OAuth connection work on close and ignores late tickets", async () => {
+    let complete!: (response: Response) => void;
+    const fetcher = vi.fn().mockImplementation(() => new Promise<Response>((resolve) => { complete = resolve; }));
+    const socketFactory = vi.fn();
+    const gateway = new HermesGateway({ baseUrl: "https://hermes.example.test", token: "oauth-secret", authMode: "oauth", fetcher, socketFactory });
+    const first = expect(gateway.request("profiles.list")).rejects.toThrow("Hermes gateway closed");
+    const second = expect(gateway.request("session.list")).rejects.toThrow("Hermes gateway closed");
+    expect(fetcher).toHaveBeenCalledOnce();
+    gateway.close();
+    complete(new Response(JSON.stringify({ ticket: "late-ticket" })));
+    await Promise.all([first, second]);
+    await expect(gateway.request("profiles.list")).rejects.toThrow("Hermes gateway closed");
+    expect(socketFactory).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it.each([401, 403, 503])("preserves OAuth ticket HTTP %s without exposing the response body", async (status) => {
+    const fetcher = vi.fn().mockResolvedValue(new Response("private-provider-detail", { status }));
+    const gateway = new HermesGateway({ baseUrl: "https://hermes.example.test", token: "oauth-secret", authMode: "oauth", fetcher });
+    await expect(gateway.request("profiles.list")).rejects.toMatchObject({
+      message: `Hermes OAuth ticket request failed (${status})`, code: status,
+      data: { phase: "oauth-ticket" }
+    });
+    expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ redirect: "error", signal: expect.any(AbortSignal) }));
+    gateway.close();
+  });
+
+  it.each(["{private-invalid-json", "null", JSON.stringify({ ticket: "x".repeat(17_000) }), JSON.stringify({ ticket: "" })])("rejects invalid OAuth ticket bodies without echoing their contents", async (body) => {
+    const socketFactory = vi.fn();
+    const gateway = new HermesGateway({ baseUrl: "https://hermes.example.test", token: "oauth-secret", authMode: "oauth", socketFactory,
+      fetcher: vi.fn().mockResolvedValue(new Response(body)) });
+    await expect(gateway.request("profiles.list")).rejects.toThrow("Hermes returned an invalid WebSocket ticket");
+    expect(socketFactory).not.toHaveBeenCalled();
+    gateway.close();
+  });
+
   it("matches JSON-RPC responses to requests", async () => {
     const socket = new FakeSocket();
     const gateway = new HermesGateway({
@@ -98,7 +154,7 @@ describe("HermesGateway", () => {
     await expect(resultPromise).resolves.toEqual({ sessions: [] });
   });
 
-  it("publishes gateway events to subscribers", () => {
+  it("publishes gateway events to subscribers", async () => {
     const socket = new FakeSocket();
     const gateway = new HermesGateway({
       baseUrl: "http://127.0.0.1:9120",
@@ -107,12 +163,16 @@ describe("HermesGateway", () => {
     });
     const events: unknown[] = [];
     gateway.subscribe((event) => events.push(event));
-    void gateway.request("session.list");
+    const pending = gateway.request("session.list");
     socket.open();
 
     socket.receive({ jsonrpc: "2.0", method: "event", params: { type: "message.delta", session_id: "abc", payload: { text: "Bon" } } });
 
     expect(events).toEqual([{ type: "message.delta", sessionId: "abc", payload: { text: "Bon" } }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    socket.receive({ jsonrpc: "2.0", id: JSON.parse(socket.sent[0]).id, result: {} });
+    await pending;
+    gateway.close();
   });
 
   it("preserves Hermes structured failure data on rejected requests", async () => {

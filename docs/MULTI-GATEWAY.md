@@ -147,5 +147,14 @@ the happy path, not crash recovery, network interruption or packaged OAuth.
 
 Before release, qualify live failure/recovery scenarios and native OAuth
 reconnection on both desktop platforms.
+OAuth transport tests use isolated loopback HTTP/WebSocket endpoints to verify
+recovery after a ticket rejection, fresh single-use tickets after a socket
+disconnect, and refusal of ticket redirects. Unit tests also cover stalled
+headers/bodies, malformed or oversized responses, cancellation and late ticket
+responses. Ticket acquisition has an eight-second deadline (followed by a
+separate eight-second WebSocket opening deadline); ticket HTTP 401/403 errors
+show authentication required without exposing the response body. These checks
+do not qualify a real provider's sign-in, browser callback or refresh flow in
+the packaged application.
 No live provider, remote credential or production Bot was modified to run the
 fixture tests.

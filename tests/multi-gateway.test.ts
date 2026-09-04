@@ -3,6 +3,7 @@ import { MultiGateway } from "../server/multi-gateway";
 import { HermesConnectionManager, type HermesRuntime } from "../server/hermes-connection";
 import { createApp } from "../server/app";
 import type { GatewayRegistry } from "../server/gateway-registry";
+import { HermesGatewayError } from "../server/hermes-gateway";
 
 const closes: Array<() => void> = [];
 afterEach(() => { closes.splice(0).forEach((close) => close()); });
@@ -28,6 +29,19 @@ function fixture() {
 }
 
 describe("Multi-gateway isolation", () => {
+  it.each([
+    [401, "oauth-ticket", "auth-required"],
+    [403, "oauth-ticket", "auth-required"],
+    [503, "oauth-ticket", "unavailable"],
+    [401, "provider", "unavailable"]
+  ])("classifies HTTP %s during %s as %s without affecting the healthy gateway", async (code, phase, status) => {
+    const { hub, runtimes } = fixture();
+    const remote = await hub.addGateway({ label: "Work", baseUrl: "https://work.example.test" });
+    vi.mocked(runtimes.get(remote.id)!.hermes.listBots).mockRejectedValue(new HermesGatewayError("private detail", { phase }, Number(code)));
+    const rows = await hub.connectionStatuses();
+    expect(rows.map((row) => row.status)).toEqual(["connected", status]);
+    expect(JSON.stringify(rows)).not.toMatch(/secret|private|baseUrl|token/);
+  });
   it("probes authenticated reachability independently and exposes no connection secrets", async () => {
     const { hub, runtimes } = fixture();
     const remote = await hub.addGateway({ label: "Work", baseUrl: "https://work.example.test" });

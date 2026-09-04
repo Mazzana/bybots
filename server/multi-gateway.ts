@@ -7,6 +7,7 @@ import type { GatewayRegistry, RegistryStore } from "./gateway-registry";
 import type { BotSummary } from "./hermes-client";
 import type { GroupRoom } from "./group-chat-service";
 import type { RelayJournalStore } from "./relay-journal";
+import { HermesGatewayError } from "./hermes-gateway";
 
 interface Entry { id: string; label: string; manager: HermesConnectionManager; relay: boolean }
 export interface GatewayView { id: string; label: string; isDefault: boolean; baseUrl: string; hasToken: boolean; authMode: string; requiresReauthentication?: boolean; relay: boolean; relayStatus: "disabled" | "checking" | "ready" | "unavailable" }
@@ -35,7 +36,10 @@ export class MultiGateway implements HermesConnectionService {
           if (entry.manager.relayGateway) await entry.manager.relayGateway.request("profiles.list", { include_sessions: false }, 5_000);
           else await entry.manager.hermes.listBots();
           status = "connected";
-        } catch { status = "unavailable"; }
+        } catch (error) {
+          status = error instanceof HermesGatewayError && error.data?.phase === "oauth-ticket"
+            && (error.code === 401 || error.code === 403) ? "auth-required" : "unavailable";
+        }
       }
       return { id: entry.id, label: entry.label, isDefault: entry.id === this.defaultGatewayId, status };
     })).then((rows) => { this.health = { at: Date.now(), rows }; return rows; }).finally(() => { this.healthRequest = undefined; });
