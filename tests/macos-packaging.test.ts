@@ -36,6 +36,15 @@ describe("macOS distribution", () => {
     expect(ciWorkflow).toContain("npm run build:electron");
   });
 
+  it("publishes alpha tags as unsigned previews while preserving stable signing gates", () => {
+    const workflow = readFileSync(resolve(root, ".github", "workflows", "release.yml"), "utf8");
+    expect(workflow).toContain("contains(github.ref_name, '-')");
+    expect(workflow).toContain("CSC_IDENTITY_AUTO_DISCOVERY");
+    expect(workflow).toContain("Windows signing secrets are required for a stable release");
+    expect(workflow).toContain("Apple notarization secrets are required for a stable release");
+    expect(workflow).toContain("release_flags+=(--prerelease)");
+  });
+
   it("declares the Electron hardened-runtime entitlements", () => {
     const entitlements = readFileSync(resolve(root, "build", "entitlements.mac.plist"), "utf8");
     expect(entitlements).toContain("com.apple.security.cs.allow-jit");

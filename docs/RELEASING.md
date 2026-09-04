@@ -6,8 +6,9 @@ read that value. `npm run test:version` verifies that the lockfile and public
 README remain aligned with it.
 
 Development versions use a SemVer pre-release suffix, for example
-`0.3.1-alpha.1`. They may be packaged for validation, but must not receive a
-final version tag or be presented as signed official releases.
+`0.3.1-alpha.1`. A matching tag publishes an explicitly marked GitHub
+pre-release with unsigned development artifacts. It must not be presented as a
+signed official release.
 
 ## Development artifacts
 
@@ -37,10 +38,12 @@ per-user application-data directory. It does not bundle or start Hermes.
 
 ## Official release requirements
 
-Official version tags use `v<package-version>`, for example `v0.2.0`. The
-release workflow refuses a mismatched tag or missing signing credentials.
+Version tags use `v<package-version>`, for example `v0.3.1-alpha.1`. The release
+workflow refuses a mismatched tag. Stable tags also refuse missing signing
+credentials; pre-release tags deliberately use the unsigned artifact checks
+and GitHub's **Pre-release** label.
 
-Configure these encrypted GitHub Actions secrets before creating a tag:
+Configure these encrypted GitHub Actions secrets before creating a stable tag:
 
 - `WINDOWS_CERTIFICATE`: a base64-encoded or otherwise electron-builder
   compatible `.pfx`/`.p12` Authenticode certificate;
@@ -67,9 +70,10 @@ or support bundle.
    complete both checklists in `docs/TESTING.md`.
 7. Verify Authenticode on Windows and Developer ID, Gatekeeper, and the stapled
    notarization ticket on macOS.
-8. Create and push the exact version tag. The release workflow rebuilds,
-   signs, notarizes, attests, hashes, and publishes the Windows and macOS
-   artifacts.
+8. Create and push the exact version tag. For a pre-release version, the
+   workflow rebuilds, validates, hashes, attests, and publishes unsigned Windows
+   and macOS artifacts under GitHub's **Pre-release** label. For a stable
+   version, it additionally signs and notarizes the artifacts before publishing.
 
 The resulting `SHA256SUMS.txt` and `SHA256SUMS-macos.txt` let users verify
 downloads with `Get-FileHash -Algorithm SHA256 <artifact>` on Windows or

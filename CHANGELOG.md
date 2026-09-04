@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file. The project
 
 ## [Unreleased]
 
-### 0.3.1-alpha.1 — continuity and interaction quality
+## [0.3.1-alpha.1] - 2026-09-04
+
+### Continuity and interaction quality
 
 #### Added
 
@@ -152,3 +154,7 @@ All notable changes to this project will be documented in this file. The project
 
 - Bodyless requests no longer declare a JSON content type.
 - Chats open at the latest message without forcing users back down while they read older content.
+
+[Unreleased]: https://github.com/Mazzana/bybots/compare/v0.3.1-alpha.1...HEAD
+[0.3.1-alpha.1]: https://github.com/Mazzana/bybots/releases/tag/v0.3.1-alpha.1
+[0.1.0]: https://github.com/Mazzana/bybots/releases/tag/v0.1.0
