@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, type Bot } from "../src/App";
+import { FirstRunPanel } from "../src/FirstRunPanel";
 import { HermesConnectionPanel } from "../src/HermesConnectionPanel";
 import { LanguageProvider, type Language } from "../src/i18n";
 
@@ -174,6 +175,88 @@ describe("ByBots UI", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Start Hermes on this computer, then try again");
   });
 
+  it("keeps a first-time customer in guided recovery when local Hermes is offline", async () => {
+    const api = {
+      listBots: vi.fn().mockRejectedValue(new Error("Hermes is offline")), getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(),
+      getAccess: vi.fn().mockResolvedValue({ role: "admin" as const }), listMachines: vi.fn().mockResolvedValue([]), listGroups: vi.fn().mockResolvedValue([]),
+      getDiagnostics: vi.fn().mockResolvedValue({
+        checkedAt: new Date().toISOString(), supportedHermes: "0.21.x",
+        bridge: { status: "ready" as const, version: "0.3.1" },
+        hermes: { status: "error" as const, baseUrl: "http://127.0.0.1:9120" },
+        authentication: { status: "warning" as const }
+      }),
+      getHermesConnection: vi.fn().mockResolvedValue({ baseUrl: "http://127.0.0.1:9120", defaultBaseUrl: "http://127.0.0.1:9120", hasToken: true, secure: true, source: "environment" as const }),
+      testHermesConnection: vi.fn(), updateHermesConnection: vi.fn(), resetHermesConnection: vi.fn()
+    };
+    renderApp(api, "en");
+
+    expect(await screen.findByRole("heading", { name: "Connect your Hermes gateway" })).toBeInTheDocument();
+    const waiting = screen.getByText("Waiting for local Hermes…").closest("[role='status']");
+    expect(waiting).toHaveTextContent("Waiting for local Hermes");
+    expect(waiting).toHaveTextContent("Nothing needs to be reconfigured");
+    expect(screen.queryByRole("heading", { name: "Conversations unavailable" })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("bybots.onboardingCompleted")).toBeNull();
+  });
+
+  it("detects local Hermes automatically while the first-run screen is open", async () => {
+    vi.useFakeTimers();
+    try {
+      const onConnected = vi.fn();
+      const api = {
+        listBots: vi.fn(), getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(),
+        getDiagnostics: vi.fn().mockResolvedValue({
+          checkedAt: new Date().toISOString(), supportedHermes: "0.21.x",
+          bridge: { status: "ready" as const, version: "0.3.1" },
+          hermes: { status: "ready" as const, baseUrl: "http://127.0.0.1:9120", version: "0.21.4", compatible: true },
+          authentication: { status: "ready" as const }
+        }),
+        getHermesConnection: vi.fn().mockResolvedValue({ baseUrl: "http://127.0.0.1:9120", defaultBaseUrl: "http://127.0.0.1:9120", hasToken: true, secure: true, source: "environment" as const }),
+        testHermesConnection: vi.fn(), updateHermesConnection: vi.fn(), resetHermesConnection: vi.fn()
+      };
+      render(<LanguageProvider initialLanguage="en"><FirstRunPanel api={api} role="admin" localHermesUnavailable onConnected={onConnected} /></LanguageProvider>);
+      await act(async () => Promise.resolve());
+      await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+
+      expect(api.getDiagnostics).toHaveBeenCalledOnce();
+      expect(onConnected).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears startup errors after the guided Hermes recovery succeeds", async () => {
+    const offline = {
+      checkedAt: new Date().toISOString(), supportedHermes: "0.21.x",
+      bridge: { status: "ready" as const, version: "0.3.1" },
+      hermes: { status: "error" as const, baseUrl: "http://127.0.0.1:9120" },
+      authentication: { status: "warning" as const }
+    };
+    const connected = {
+      ...offline,
+      hermes: { status: "ready" as const, baseUrl: "http://127.0.0.1:9120", version: "0.21.4", compatible: true },
+      authentication: { status: "ready" as const }
+    };
+    const api = {
+      listBots: vi.fn().mockRejectedValueOnce(new Error("Hermes is offline")).mockResolvedValue([]), getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(),
+      getAccess: vi.fn().mockResolvedValue({ role: "admin" as const }),
+      listMachines: vi.fn().mockResolvedValue([]),
+      listGroups: vi.fn().mockRejectedValueOnce(new Error("Hermes is offline")).mockResolvedValue([]),
+      getDiagnostics: vi.fn().mockResolvedValueOnce(offline).mockResolvedValue(connected),
+      getHermesConnection: vi.fn().mockResolvedValue({ baseUrl: "http://127.0.0.1:9120", defaultBaseUrl: "http://127.0.0.1:9120", hasToken: true, secure: true, source: "environment" as const }),
+      testHermesConnection: vi.fn(), updateHermesConnection: vi.fn(),
+      resetHermesConnection: vi.fn().mockResolvedValue({ baseUrl: "http://127.0.0.1:9120", defaultBaseUrl: "http://127.0.0.1:9120", hasToken: true, secure: true, source: "environment" as const, version: "0.21.4" })
+    };
+    renderApp(api, "en");
+
+    expect(await screen.findByRole("heading", { name: "Connect your Hermes gateway" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Retry local connection/ }));
+
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Connect your Hermes gateway" })).not.toBeInTheDocument());
+    expect(screen.queryByText("Could not load Bots.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Could not load group conversations.")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("bybots.onboardingCompleted")).toBe("true");
+  });
+
   it("shows initial loading and a recoverable Bot-list failure before the empty state", async () => {
     const firstLoad = deferred<Bot[]>();
     const api = {
@@ -244,6 +327,7 @@ describe("ByBots UI", () => {
     ["offline remote", { status: "error" as const, baseUrl: "https://hermes.example.test" }, "Hermes is unavailable", "Open diagnostics to review the gateway connection."],
     ["incompatible", { status: "ready" as const, baseUrl: "http://127.0.0.1:9120", version: "0.22.0", compatible: false }, "Hermes version is not supported", "Open diagnostics to review the gateway connection."]
   ])("shows the explicit %s Hermes state", async (_state, hermes, heading, detail) => {
+    window.localStorage.setItem("bybots.onboardingCompleted", "true");
     const api = {
       listBots: vi.fn().mockResolvedValue([]), getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(),
       getHermesConnection: vi.fn().mockResolvedValue({ baseUrl: hermes.baseUrl, defaultBaseUrl: "http://127.0.0.1:9120", hasToken: true, secure: true, source: "environment" as const }),
@@ -262,7 +346,7 @@ describe("ByBots UI", () => {
     if (_state === "offline local") {
       fireEvent.click(within(stateHeading.closest("[role='alert']")!).getByRole("button", { name: "Open diagnostics" }));
       expect(await screen.findByRole("heading", { name: "Hermes", level: 3 })).toBeInTheDocument();
-      expect(within(screen.getByRole("dialog")).getByText("Local Hermes is not available")).toBeInTheDocument();
+      expect(await within(screen.getByRole("dialog")).findByText("Local Hermes is not available")).toBeInTheDocument();
     }
   });
 

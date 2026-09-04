@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file. The project
   message with the expected loopback address, automatic-session guidance, and
   an accessible retry action. Remote gateway failures retain their separate
   diagnostics flow.
+- A fresh installation no longer drops users into a broken workspace when the
+  local Hermes service is stopped. ByBots keeps the connection onboarding open,
+  explains that no reconfiguration is needed, and resumes automatically after
+  Hermes becomes available. Returning users retain the compact in-app warning.
 
 ## [0.3.1-alpha.1] - 2026-09-04
 

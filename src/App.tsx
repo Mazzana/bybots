@@ -20,6 +20,7 @@ import type { SettingsSection } from "./SettingsPanel";
 
 const LAST_THREADS_STORAGE_KEY = "byfinity.lastThreads";
 const LAST_ACTIVE_STORAGE_KEY = "byfinity.lastActive";
+const ONBOARDING_COMPLETED_STORAGE_KEY = "bybots.onboardingCompleted";
 const DRAFTS_STORAGE_KEY = "byfinity.drafts.v1";
 const MAX_DRAFTS = 80;
 const MAX_DRAFT_LENGTH = 100_000;
@@ -446,6 +447,10 @@ export function App({ api }: { api: BotsApi }) {
   const previousBotRun = useRef({ key: "", running: false });
   const previousGroupRun = useRef({ key: "", running: false });
   const latestDrafts = useRef(drafts);
+  const firstLaunch = useRef(typeof window !== "undefined"
+    && window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY) !== "true"
+    && !window.localStorage.getItem(LAST_ACTIVE_STORAGE_KEY)
+    && !window.localStorage.getItem(LAST_THREADS_STORAGE_KEY));
   const selectedBot = bots.find((bot) => bot.name === selected) ?? null;
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? null;
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
@@ -555,7 +560,13 @@ export function App({ api }: { api: BotsApi }) {
     try {
       const result = await api.getDiagnostics();
       setDiagnostics(result);
-      if (result.authentication.status === "error" && result.authentication.detail === "Hermes session token is required") setFirstRun(true);
+      const needsAuthentication = result.authentication.status === "error" && result.authentication.detail === "Hermes session token is required";
+      const unavailableOnFirstLaunch = firstLaunch.current && result.hermes.status === "error" && isLocalHermesUrl(result.hermes.baseUrl);
+      if (needsAuthentication || unavailableOnFirstLaunch) setFirstRun(true);
+      if (result.hermes.status === "ready" && result.hermes.compatible !== false && result.authentication.status === "ready") {
+        firstLaunch.current = false;
+        window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "true");
+      }
     } catch (cause) {
       setDiagnosticsError(String(cause));
     } finally {
@@ -1171,7 +1182,7 @@ export function App({ api }: { api: BotsApi }) {
     setBots((current) => [...current.filter((item) => item.name !== bot.name), bot]);
   }
 
-  async function handleGatewayChanged() {
+  const handleGatewayChanged = useCallback(async () => {
     selectionRequest.current += 1;
     window.localStorage.removeItem(LAST_THREADS_STORAGE_KEY);
     window.localStorage.removeItem(LAST_ACTIVE_STORAGE_KEY);
@@ -1185,6 +1196,8 @@ export function App({ api }: { api: BotsApi }) {
     setGroups([]);
     setBots([]);
     setBotsLoading(true);
+    setBotsError("");
+    setGroupsError("");
     setMachines([]);
     setError("");
     try {
@@ -1198,13 +1211,15 @@ export function App({ api }: { api: BotsApi }) {
       setGroups(nextGroups);
       const nextDiagnostics = await api.getDiagnostics?.();
       if (nextDiagnostics) setDiagnostics(nextDiagnostics);
+      firstLaunch.current = false;
+      window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "true");
       setFirstRun(false);
     } catch (cause) {
       setError(String(cause));
     } finally {
       setBotsLoading(false);
     }
-  }
+  }, [api]);
 
   async function saveAvatar() {
     if (!selectedBot || !api.updateBotAvatar) return;
@@ -1372,7 +1387,7 @@ export function App({ api }: { api: BotsApi }) {
 
   return (
     <main className={`shell ${hasDetails && detailsOpen ? "details-open" : "details-closed"} ${hasDetails ? "mobile-conversation" : "mobile-inbox"}`}>
-      <aside className="sidebar" aria-label={t("Conversation threads")}>
+      <aside className="sidebar" aria-label={t("Conversation threads")} aria-hidden={firstRun || undefined}>
         <div className="sidebar-topbar">
           <button className="brand" type="button" aria-label={t("Open ByBots home")} onClick={showHome}><strong>ByBots</strong></button>
           {canAdmin && <IconButton className="new-chat-button" label={t("New Bot")} onClick={openBotCreator}><Plus size={20} /></IconButton>}
@@ -1412,7 +1427,7 @@ export function App({ api }: { api: BotsApi }) {
         <div className="sidebar-footer"><button ref={settingsButtonRef} type="button" aria-label={t("Settings")} onClick={() => openSettings()}><Settings size={18} /><span>{t("Settings")}</span></button><div className="account-row"><span className="account-avatar">B</span><span><strong>{accessLoading ? t("Checking access…") : accessError ? t("Access unavailable") : currentUserLabel}</strong><small><i className={diagnostics?.hermes.status === "error" || diagnosticsError ? "offline" : diagnostics?.hermes.status === "warning" ? "warning" : ""} /> {diagnosticsLoading ? t("Checking connection…") : diagnosticsError || !diagnostics ? t("Status unavailable") : diagnostics.hermes.status === "error" ? t("Hermes unavailable") : diagnostics.hermes.status === "warning" ? t("Hermes needs attention") : t("Hermes connected")}</small></span></div></div>
       </aside>
 
-      <section className="content" aria-label={t("Conversation")}>
+      <section className="content" aria-label={t("Conversation")} aria-hidden={firstRun || undefined}>
         <header className="conversation-header"><div className="conversation-title">{hasDetails && <IconButton className="mobile-back-button" label={t("Back to conversations")} onClick={showHome}><ChevronLeft size={22} /></IconButton>}{selectedBot && <BotAvatar bot={selectedBot} size={30} />}{selectedGroup && <span className="mini-group-avatar"><Users size={16} /></span>}<div className="conversation-heading"><h1>{activeTitle}</h1></div></div><div className="conversation-actions">{selectedThread && canAdmin && <><IconButton className="header-icon-action" label={t("Rename thread")} onClick={() => beginRenameThread(selectedThread)}><Pencil size={16} /></IconButton><IconButton className="header-icon-action" label={t("Archive thread")} disabled={selectedThread.running} onClick={() => void archiveBotThread(selectedThread)}><Archive size={16} /></IconButton></>}{selectedBot && api.listRoutines && <button className="routines-shortcut" type="button" onClick={openRoutines}><CalendarClock size={16} /><span>{t("Routines")}</span></button>}{selectedBot && <ChatModelSelector api={api} bot={selectedBot} role={accessRole} running={Boolean(conversation?.running)} refreshKey={botConfigurationVersion} />}{hasDetails && <IconButton className="details-toggle" label={detailsOpen ? t("Hide details") : t("Show details")} aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>{detailsOpen ? <ChevronRight size={19} /> : <ChevronLeft size={19} />}<span className="sr-only">{t("Details")}</span></IconButton>}</div></header>
 
         {!firstRun && diagnosticsError && <div className="connection-banner error-banner" role="alert"><AlertTriangle size={18} /><span><strong>{t("Connection status unavailable")}</strong><small>{t("ByBots could not verify Hermes health.")}</small></span><button type="button" onClick={() => void loadDiagnostics()}><RotateCcw size={16} />{t("Try again")}</button></div>}

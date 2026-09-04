@@ -628,6 +628,9 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .first-run-language { margin: 22px 0 12px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid #2d2e31; border-radius: 11px; background: #19191c; color: #8f9096; }
 .first-run-language label { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #c8c8cc; font-size: 12px; }
 .first-run-language select { min-height: 44px; padding: 0 32px 0 10px; border: 1px solid #37383c; border-radius: 8px; background: #101012; color: #e7e7e9; }
+.first-run-waiting { margin-bottom: 12px; }
+.first-run-waiting > svg { flex: 0 0 auto; margin-top: 1px; animation: spin 1.8s linear infinite; }
+html.reduce-motion .first-run-waiting > svg { animation: none; }
 .gateway-options { margin: 12px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .gateway-options > button { min-width: 0; min-height: 64px; padding: 11px; display: flex; align-items: center; gap: 10px; border: 1px solid #2d2e31; border-radius: 11px; background: #151517; color: #97989e; text-align: left; cursor: pointer; }
 .gateway-options > button[aria-pressed="true"] { border-color: #777980; background: #202023; box-shadow: inset 0 0 0 1px #ffffff12; }
