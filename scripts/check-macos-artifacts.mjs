@@ -60,7 +60,8 @@ for (const architecture of ["x86_64", "arm64"]) {
 const signature = run("codesign", ["-dv", "--verbose=4", appPath]);
 const signatureDetails = `${signature.stdout}\n${signature.stderr}`;
 const developerIdSigned = /Authority=Developer ID Application:/.test(signatureDetails);
-if (signature.status === 0) {
+const hasSignature = signature.status === 0 && !/not signed at all/i.test(signatureDetails);
+if (hasSignature) {
   requireCommand("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath], "Code signature verification");
 }
 if (requireSigned && !developerIdSigned) {
@@ -88,4 +89,4 @@ for (const artifact of artifacts) {
 }
 
 writeFileSync(resolve(releaseDir, "SHA256SUMS-macos.txt"), `${checksums.join("\n")}\n`, "utf8");
-console.log(`Qualified universal macOS artifacts for ${productName} ${version}; signature ${developerIdSigned ? "Developer ID" : "development or unsigned"}.`);
+console.log(`Qualified universal macOS artifacts for ${productName} ${version}; signature ${developerIdSigned ? "Developer ID" : hasSignature ? "development" : "unsigned"}.`);
