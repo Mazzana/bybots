@@ -1250,7 +1250,7 @@ describe("ByBots UI", () => {
       enabledToolsets: ["file"],
       enabledMcpServers: ["neon"]
     })));
-    expect(screen.queryByRole("heading", { name: "Configurer Finance" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Configurer Finance" })).not.toBeInTheDocument());
   });
 
   it("opens a group discussion and sends one turn to its Bots", async () => {

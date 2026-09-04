@@ -39,6 +39,7 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
   const [recoveryError, setRecoveryError] = useState("");
   const [recoveryComplete, setRecoveryComplete] = useState(false);
   const oauthAttempt = useRef(0);
+  const mounted = useRef(false);
   const supported = Boolean(api.getHermesConnection && api.testHermesConnection && api.updateHermesConnection && api.resetHermesConnection);
   const canManage = supported && role === "admin";
   const recovering = autoReconnect && target === "local" && !loading && !busy && !recoveryComplete && Boolean(api.getDiagnostics);
@@ -76,7 +77,10 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
     }
   }, [t]);
 
-  useEffect(() => () => { oauthAttempt.current += 1; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; oauthAttempt.current += 1; };
+  }, []);
 
   useEffect(() => {
     if (!api.getHermesConnection) {
@@ -133,12 +137,13 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
     setSuccess("");
     try {
       const probe = await api.testHermesConnection(input());
+      if (!mounted.current) return;
       if (connection?.baseUrl === probe.baseUrl) setConnection({ ...connection, version: probe.version, secure: probe.secure });
       setSuccess(t("Connection successful · Hermes {version}", { version: probe.version }));
     } catch (cause) {
-      setError(formatError(cause));
+      if (mounted.current) setError(formatError(cause));
     } finally {
-      setBusy("");
+      if (mounted.current) setBusy("");
     }
   }
 
@@ -149,16 +154,19 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
     setSuccess("");
     try {
       const next = await api.updateHermesConnection(input());
-      setConnection(next);
-      setBaseUrl(next.baseUrl);
-      setTarget("remote");
-      setToken("");
+      if (mounted.current) {
+        setConnection(next);
+        setBaseUrl(next.baseUrl);
+        setTarget("remote");
+        setToken("");
+      }
       await onConnected();
+      if (!mounted.current) return;
       setSuccess(t("Connected to Hermes {version}", { version: next.version || "" }));
     } catch (cause) {
-      setError(formatError(cause));
+      if (mounted.current) setError(formatError(cause));
     } finally {
-      setBusy("");
+      if (mounted.current) setBusy("");
     }
   }
 
@@ -173,30 +181,35 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
     try {
       const next = await api.resetHermesConnection();
       restored = true;
-      setConnection(next);
-      setBaseUrl(next.baseUrl);
-      setTarget("local");
-      setToken("");
+      if (mounted.current) {
+        setConnection(next);
+        setBaseUrl(next.baseUrl);
+        setTarget("local");
+        setToken("");
+      }
       await onConnected();
+      if (!mounted.current) return;
       setRecoveryComplete(true);
       setSuccess(t("Default Hermes gateway restored."));
     } catch (cause) {
+      if (!mounted.current) return;
       if (!restored) { setLocalUnavailable(true); setError(formatError(cause)); }
       else setRecoveryError(t("The connection could not be completed. Retry or open the setup guide below."));
     } finally {
-      setBusy("");
+      if (mounted.current) setBusy("");
     }
   }
 
   async function connectWithOAuth() {
     if (!api.startHermesOAuth) return;
+    const attempt = ++oauthAttempt.current;
     setBusy("oauth");
     setError("");
     setSuccess("");
     try {
       const requestedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
       const { authorizationUrl } = await api.startHermesOAuth({ baseUrl: requestedBaseUrl });
-      const attempt = ++oauthAttempt.current;
+      if (oauthAttempt.current !== attempt) return;
       window.location.assign(authorizationUrl);
       if (!document.documentElement.dataset.desktop || !api.getHermesConnection) return;
 
@@ -205,10 +218,12 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
         if (oauthAttempt.current !== attempt) return;
         try {
           const next = await api.getHermesConnection();
+          if (oauthAttempt.current !== attempt) return;
           if (next.baseUrl.replace(/\/+$/, "") !== requestedBaseUrl || next.authMode !== "oauth" || !next.hasToken || next.requiresReauthentication) continue;
           setConnection(next);
           setBaseUrl(next.baseUrl);
           await onConnected();
+          if (oauthAttempt.current !== attempt) return;
           setSuccess(t("Connected to Hermes {version}", { version: next.version || "" }));
           setBusy("");
           return;
@@ -221,6 +236,7 @@ export function HermesConnectionPanel({ api, role, initialLocalUnavailable = fal
         setBusy("");
       }
     } catch (cause) {
+      if (oauthAttempt.current !== attempt) return;
       setError(formatError(cause));
       setBusy("");
     }

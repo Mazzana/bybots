@@ -1,5 +1,5 @@
 import type { GatewayEvent } from "./hermes-gateway";
-import { hermesFailure, type HermesFailure } from "./hermes-failure";
+import { hermesFailure, hermesFailureFromUnknown, type HermesFailure } from "./hermes-failure";
 
 const LEGACY_THREAD_TITLE = "Bot Chat";
 const NEW_THREAD_TITLE = "New thread";
@@ -104,6 +104,7 @@ export function parseHermesAgentMessage(text: string, recipientProfile: string):
 export class BotChatService {
   private readonly conversations = new Map<string, LiveConversation>();
   private readonly runtimeSessions = new Map<string, string>();
+  private readonly openingConversations = new Map<string, Promise<LiveConversation>>();
   private readonly threadListeners = new Map<string, Set<(event: BotThreadEvent) => void>>();
 
   constructor(private readonly gateway: GatewayPort) {
@@ -216,10 +217,26 @@ export class BotChatService {
   }
 
   private async submit(conversation: LiveConversation, text: string): Promise<void> {
-    conversation.messages.push({ role: "user", text });
+    if (conversation.running) throw new Error("This Bot is already responding");
+    const submittedMessage: ChatMessage = { role: "user", text };
+    conversation.messages.push(submittedMessage);
     conversation.preview = text;
     conversation.running = true;
-    await this.gateway.request("prompt.submit", { session_id: conversation.runtimeId, text });
+    try {
+      await this.gateway.request("prompt.submit", { session_id: conversation.runtimeId, text });
+    } catch (cause) {
+      // An RPC rejection does not necessarily produce a message.complete event.
+      // Release the composer and tell every watcher why this attempt failed.
+      if (conversation.running && conversation.messages.filter((message) => message.role === "user").at(-1) === submittedMessage) {
+        const failure = hermesFailureFromUnknown(cause);
+        const last = conversation.messages.at(-1);
+        if (last?.role === "assistant") last.failure = failure;
+        else conversation.messages.push({ role: "assistant", text: "", failure });
+        conversation.running = false;
+        this.emitConversation(conversation);
+      }
+      throw cause;
+    }
     this.emitConversation(conversation);
   }
 
@@ -227,6 +244,10 @@ export class BotChatService {
     const cached = [...this.conversations.values()].find((item) => item.bot === bot && item.title === LEGACY_THREAD_TITLE);
     if (cached) return cached;
 
+    return this.openOnce(`canonical\u0000${bot}`, () => this.loadCanonical(bot));
+  }
+
+  private async loadCanonical(bot: string): Promise<LiveConversation> {
     const listed = await this.gateway.request("session.list", {
       profile: bot,
       title: LEGACY_THREAD_TITLE,
@@ -244,6 +265,10 @@ export class BotChatService {
     const cached = this.conversations.get(this.key(bot, threadId));
     if (cached) return cached;
 
+    return this.openOnce(`thread\u0000${this.key(bot, threadId)}`, () => this.loadThread(bot, threadId));
+  }
+
+  private async loadThread(bot: string, threadId: string): Promise<LiveConversation> {
     const threads = await this.listThreads(bot);
     const thread = threads.find((item) => item.id === threadId);
     if (!thread) throw new Error(`Thread not found: ${threadId}`);
@@ -258,6 +283,20 @@ export class BotChatService {
   }
 
   private async resume(bot: string, stored: StoredSession): Promise<LiveConversation> {
+    const cached = this.conversations.get(this.key(bot, stored.id));
+    if (cached) return cached;
+    return this.openOnce(`resume\u0000${this.key(bot, stored.id)}`, () => this.loadSession(bot, stored));
+  }
+
+  private openOnce(key: string, load: () => Promise<LiveConversation>): Promise<LiveConversation> {
+    const pending = this.openingConversations.get(key);
+    if (pending) return pending;
+    const opening = load().finally(() => this.openingConversations.delete(key));
+    this.openingConversations.set(key, opening);
+    return opening;
+  }
+
+  private async loadSession(bot: string, stored: StoredSession): Promise<LiveConversation> {
     const resumed = await this.gateway.request("session.resume", {
       session_id: stored.resolved_id || stored.id,
       profile: bot

@@ -13,6 +13,18 @@ All notable changes to this project will be documented in this file. The project
 
 ### Fixed
 
+- Late history, send, retry, and attachment-read responses no longer replace a
+  different conversation. Failed sends preserve subsequent draft edits.
+- Canceled OAuth attempts no longer reopen sign-in or complete a newer attempt.
+  A gateway change already saved by the Bridge still refreshes the workspace
+  if its settings panel has been closed.
+- MCP connection tests and saves stay associated with their original Bot;
+  switching Bots or leaving settings cannot display a stale configuration.
+- Rejected Bot prompts release the running state and notify live subscribers.
+  Concurrent submissions share session hydration and cannot submit twice.
+- Stopping a group invalidates queued turns before waiting for Hermes, so
+  delayed session creation or interruption cannot start the next Bot.
+
 - First-run recovery pauses during remote gateway configuration, ignores stale
   local health responses, and only completes after authentication, compatibility,
   and workspace loading succeed. Failed loading remains retryable.

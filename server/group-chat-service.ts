@@ -177,6 +177,7 @@ export class GroupChatService {
     try {
       await this.advanceRun(updated.id);
     } catch (cause) {
+      if (this.activeRuns.get(updated.id) !== run) return this.publicRoom(updated);
       if (run.currentSession) this.activeTurns.delete(run.currentSession);
       this.activeRuns.delete(updated.id);
       this.recordActivity(updated.id, { kind: "failed", member: run.queue[0], failure: hermesFailureFromUnknown(cause), at: Date.now() });
@@ -190,18 +191,21 @@ export class GroupChatService {
     const room = this.findRoom(state, roomId);
     if (!room) throw new Error(`Unknown group '${roomId}'`);
     const run = this.activeRuns.get(room.id);
-    if (run?.currentSession) {
-      await this.gateway.request("session.interrupt", { session_id: run.currentSession }).catch(() => undefined);
-      this.activeTurns.delete(run.currentSession);
-    }
+    // Invalidate the run before awaiting Hermes: interruption can itself emit
+    // message.complete, and pending session creation can finish meanwhile.
     this.activeRuns.delete(room.id);
     this.recordActivity(room.id, { kind: "stopped", at: Date.now() });
+    if (run?.currentSession) {
+      this.activeTurns.delete(run.currentSession);
+      await this.gateway.request("session.interrupt", { session_id: run.currentSession }).catch(() => undefined);
+    }
     return this.publicRoom(room);
   }
 
   private async startTurn(room: RoomRecord, run: ActiveRun, member: string, delta: GroupMessage[]): Promise<void> {
     const title = `Group: ${room.roomId || room.name}`;
     const listed = await this.gateway.request("session.list", { profile: member, title, limit: 1, include_hidden: true });
+    if (this.activeRuns.get(room.id) !== run) return;
     const stored = listed.sessions?.[0];
     let runtimeId: string;
     if (stored?.id) {
@@ -217,6 +221,7 @@ export class GroupChatService {
       });
       runtimeId = created.session_id;
     }
+    if (this.activeRuns.get(room.id) !== run) return;
     run.currentSession = runtimeId;
     this.activeTurns.set(runtimeId, { roomId: room.id, member });
     await this.gateway.request("prompt.submit", { session_id: runtimeId, text: this.turnPrompt(room, member, delta) });
@@ -226,6 +231,8 @@ export class GroupChatService {
     if (event.type !== "message.complete" || !event.sessionId) return;
     const turn = this.activeTurns.get(event.sessionId);
     if (!turn) return;
+    const originatingRun = this.activeRuns.get(turn.roomId);
+    if (!originatingRun) return;
     try {
       const state = await this.readState();
       const room = this.findRoom(state, turn.roomId);
@@ -264,10 +271,12 @@ export class GroupChatService {
         running: true
       };
       await this.persistRoom(state, updated);
+      if (this.activeRuns.get(room.id) !== run) return;
       this.activeTurns.delete(event.sessionId);
       run.currentSession = undefined;
       await this.advanceRun(room.id);
     } catch (cause) {
+      if (this.activeRuns.get(turn.roomId) !== originatingRun) return;
       this.activeTurns.delete(event.sessionId);
       const run = this.activeRuns.get(turn.roomId);
       if (run?.currentSession === event.sessionId) run.currentSession = undefined;
@@ -295,6 +304,7 @@ export class GroupChatService {
     const run = this.activeRuns.get(roomId);
     if (!run) return;
     const state = await this.readState();
+    if (this.activeRuns.get(roomId) !== run) return;
     const room = this.findRoom(state, roomId);
     if (!room) { this.activeRuns.delete(roomId); return; }
 
@@ -308,12 +318,14 @@ export class GroupChatService {
       try {
         await this.startTurn(room, run, member, delta);
       } catch (cause) {
+        if (this.activeRuns.get(roomId) !== run) return;
         if (run.currentSession) this.activeTurns.delete(run.currentSession);
         run.currentSession = undefined;
         this.recordActivity(room.id, { kind: "failed", member, failure: hermesFailureFromUnknown(cause), at: Date.now() });
         room.watermarks[markKey] = room.messages.length;
         room.revision = this.nextRevision(state);
         await this.persistRoom(state, room);
+        if (this.activeRuns.get(roomId) !== run) return;
         await this.advanceRun(roomId);
       }
       return;

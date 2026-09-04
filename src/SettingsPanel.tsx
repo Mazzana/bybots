@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Accessibility, Archive, Check, Gauge, Globe2, Info, Keyboard, MonitorCog, PlugZap, RotateCcw, Search, Server, Settings, X } from "lucide-react";
 import type { AccessRole, Bot, BotConfiguration, BotsApi, HermesMachine, McpServerTest } from "./App";
 import { BotAvatar } from "./BotAvatar";
@@ -59,6 +59,7 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
   const [mcpSaving, setMcpSaving] = useState("");
   const [mcpError, setMcpError] = useState("");
   const [mcpTest, setMcpTest] = useState<McpServerTest | null>(null);
+  const mcpRequest = useRef(0);
   const canManageMcp = role === "admin" && Boolean(api.getBotConfiguration && api.updateBot);
   const visibleMcpServers = (mcpConfig?.mcpServers ?? []).filter((server) => {
     const matchesSearch = !mcpSearch.trim() || `${server.name} ${server.description || ""}`.toLocaleLowerCase().includes(mcpSearch.trim().toLocaleLowerCase());
@@ -69,6 +70,8 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
   });
 
   useEffect(() => {
+    const request = ++mcpRequest.current;
+    setMcpSaving("");
     if (section !== "mcp" || !mcpBot || !api.getBotConfiguration) return;
     let active = true;
     setMcpLoading(true);
@@ -79,7 +82,7 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
       .then((config) => active && setMcpConfig(config))
       .catch((cause) => active && setMcpError(formatError(cause)))
       .finally(() => active && setMcpLoading(false));
-    return () => { active = false; };
+    return () => { active = false; if (mcpRequest.current === request) mcpRequest.current += 1; };
   }, [api, formatError, mcpBot, section]);
 
   useEffect(() => {
@@ -104,6 +107,7 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
 
   async function toggleMcp(name: string) {
     if (!mcpConfig || !api.updateBot || !canManageMcp) return;
+    const request = mcpRequest.current;
     const current = enabledMcp(mcpConfig);
     const next = current.includes(name) ? current.filter((item) => item !== name) : [...current, name];
     setMcpSaving(name);
@@ -111,9 +115,12 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
     setMcpTest(null);
     try {
       if (!current.includes(name) && api.testMcpServer) {
-        setMcpTest(await api.testMcpServer(mcpBot, name));
+        const result = await api.testMcpServer(mcpBot, name);
+        if (request !== mcpRequest.current) return;
+        setMcpTest(result);
       }
       const result = await api.updateBot(mcpBot, { enabledMcpServers: next });
+      if (request !== mcpRequest.current) return;
       const failed = Object.entries(result.applied).some(([, applied]) => !applied);
       if (failed) throw new Error(t("Hermes did not save the MCP configuration."));
       setMcpConfig({
@@ -121,9 +128,9 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
         mcpServers: mcpConfig.mcpServers.map((server) => ({ ...server, enabled: next.includes(server.name) }))
       });
     } catch (cause) {
-      setMcpError(formatError(cause));
+      if (request === mcpRequest.current) setMcpError(formatError(cause));
     } finally {
-      setMcpSaving("");
+      if (request === mcpRequest.current) setMcpSaving("");
     }
   }
 

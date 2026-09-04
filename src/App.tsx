@@ -443,6 +443,7 @@ export function App({ api }: { api: BotsApi }) {
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const selectionRequest = useRef(0);
+  const gatewayGeneration = useRef(0);
   const autoRestoreAttempted = useRef(false);
   const previousBotRun = useRef({ key: "", running: false });
   const previousGroupRun = useRef({ key: "", running: false });
@@ -847,6 +848,7 @@ export function App({ api }: { api: BotsApi }) {
         rememberLastActive({ scope: "bot", id: name, ...(nextConversation?.sessionId ? { threadId: nextConversation.sessionId } : {}) });
       } else {
         const nextConversation = api.getConversation ? await api.getConversation(name) : null;
+        if (selectionRequest.current !== requestId) return;
         setConversation(nextConversation);
         rememberLastActive({ scope: "bot", id: name });
       }
@@ -982,6 +984,7 @@ export function App({ api }: { api: BotsApi }) {
 
   async function addTextAttachments(scope: "bot" | "group", files: FileList | null) {
     if (!files?.length) return;
+    const requestId = selectionRequest.current;
     setAttachmentError("");
     const current = scope === "bot" ? botAttachments : groupAttachments;
     const available = Math.max(0, MAX_TEXT_ATTACHMENTS - current.length);
@@ -1003,9 +1006,11 @@ export function App({ api }: { api: BotsApi }) {
       try {
         content = await file.text();
       } catch {
+        if (selectionRequest.current !== requestId) return;
         setAttachmentError(t("Could not read {name}.", { name: file.name }));
         continue;
       }
+      if (selectionRequest.current !== requestId) return;
       const attachment = { name: file.name, type: file.type || "text/plain", size: file.size, content };
       const encodedSize = new TextEncoder().encode(JSON.stringify([...current, ...accepted, attachment])).byteLength;
       if (encodedSize > MAX_TEXT_ATTACHMENTS_PAYLOAD_BYTES) {
@@ -1023,6 +1028,9 @@ export function App({ api }: { api: BotsApi }) {
     event.preventDefault();
     const text = draft.trim();
     if (!selected || (!text && botAttachments.length === 0) || (!api.sendMessage && !api.sendThreadMessage)) return;
+    const requestId = selectionRequest.current;
+    const generation = gatewayGeneration.current;
+    const sentAttachments = botAttachments;
     const reply = replyTarget?.scope === "bot" ? replyTarget : null;
     const wireText = replyWireText(attachmentWireText(text, botAttachments, t("Review the attached files and answer my request.")), reply, t);
     setDraft("");
@@ -1033,11 +1041,14 @@ export function App({ api }: { api: BotsApi }) {
       const next = supportsThreads && selectedThreadId
         ? await api.sendThreadMessage!(selected, selectedThreadId, wireText)
         : await api.sendMessage!(selected, wireText);
+      if (selectionRequest.current !== requestId) return;
       setConversation(next);
       syncThread(next);
-      setBotAttachments([]);
+      setBotAttachments((items) => items.filter((item) => !sentAttachments.includes(item)));
     } catch (cause) {
-      setDraft(text);
+      if (gatewayGeneration.current !== generation) return;
+      setDraft((current) => current ? `${text}\n\n${current}` : text);
+      if (selectionRequest.current !== requestId) return;
       setReplyTarget(reply);
       setFailedSend({ scope: "bot", wireText, draftText: text, reply, failure: failureFromCause(cause) });
     }
@@ -1047,6 +1058,9 @@ export function App({ api }: { api: BotsApi }) {
     event.preventDefault();
     const text = groupDraft.trim();
     if (!selectedGroup || (!text && groupAttachments.length === 0) || !api.sendGroupMessage) return;
+    const requestId = selectionRequest.current;
+    const generation = gatewayGeneration.current;
+    const sentAttachments = groupAttachments;
     const reply = replyTarget?.scope === "group" ? replyTarget : null;
     const wireText = replyWireText(attachmentWireText(text, groupAttachments, t("Review the attached files and answer my request.")), reply, t);
     setGroupDraft("");
@@ -1055,10 +1069,14 @@ export function App({ api }: { api: BotsApi }) {
     setError("");
     try {
       const nextGroup = reply?.thread ? await api.sendGroupMessage(selectedGroup.id, wireText, reply.thread) : await api.sendGroupMessage(selectedGroup.id, wireText);
+      if (gatewayGeneration.current !== generation) return;
       setGroups((current) => current.map((group) => group.id === nextGroup.id ? nextGroup : group));
-      setGroupAttachments([]);
+      if (selectionRequest.current !== requestId) return;
+      setGroupAttachments((items) => items.filter((item) => !sentAttachments.includes(item)));
     } catch (cause) {
-      setGroupDraft(text);
+      if (gatewayGeneration.current !== generation) return;
+      setGroupDraft((current) => current ? `${text}\n\n${current}` : text);
+      if (selectionRequest.current !== requestId) return;
       setReplyTarget(reply);
       setFailedSend({ scope: "group", wireText, draftText: text, reply, failure: failureFromCause(cause) });
     }
@@ -1081,6 +1099,9 @@ export function App({ api }: { api: BotsApi }) {
 
   async function retryWireText(scope: "bot" | "group", wireText: string, draftText = wireText, reply: ReplyTarget | null = null) {
     if (retrying) return;
+    const requestId = selectionRequest.current;
+    const generation = gatewayGeneration.current;
+    const sentAttachments = scope === "bot" ? botAttachments : groupAttachments;
     setRetrying(true);
     setFailedSend(null);
     setError("");
@@ -1089,17 +1110,21 @@ export function App({ api }: { api: BotsApi }) {
         const next = supportsThreads && selectedThreadId
           ? await api.sendThreadMessage!(selected, selectedThreadId, wireText)
           : await api.sendMessage!(selected, wireText);
+        if (selectionRequest.current !== requestId) return;
         setConversation(next);
         syncThread(next);
-        setDraft("");
-        setBotAttachments([]);
+        setDraft((current) => current === draftText ? "" : current);
+        setBotAttachments((items) => items.filter((item) => !sentAttachments.includes(item)));
       } else if (scope === "group" && selectedGroup && api.sendGroupMessage) {
         const nextGroup = reply?.thread ? await api.sendGroupMessage(selectedGroup.id, wireText, reply.thread) : await api.sendGroupMessage(selectedGroup.id, wireText);
+        if (gatewayGeneration.current !== generation) return;
         setGroups((current) => current.map((group) => group.id === nextGroup.id ? nextGroup : group));
-        setGroupDraft("");
-        setGroupAttachments([]);
+        if (selectionRequest.current !== requestId) return;
+        setGroupDraft((current) => current === draftText ? "" : current);
+        setGroupAttachments((items) => items.filter((item) => !sentAttachments.includes(item)));
       }
     } catch (cause) {
+      if (selectionRequest.current !== requestId) return;
       setFailedSend({ scope, wireText, draftText, reply, failure: failureFromCause(cause) });
     } finally {
       setRetrying(false);
@@ -1184,6 +1209,7 @@ export function App({ api }: { api: BotsApi }) {
 
   const handleGatewayChanged = useCallback(async () => {
     selectionRequest.current += 1;
+    gatewayGeneration.current += 1;
     autoRestoreAttempted.current = true;
     setSelected(null);
     setSelectedGroupId(null);
