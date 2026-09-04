@@ -176,6 +176,17 @@ async function captureDesktop(browser, baseUrl) {
   await page.close();
 }
 
+async function captureBotConversation(browser, baseUrl) {
+  const page = await preparePage(browser, baseUrl, { width: 1440, height: 900 }, {
+    scope: "bot",
+    id: "launch",
+    threadId: "launch-command-center",
+    heading: "Launch Copilot"
+  });
+  await page.screenshot({ path: resolve("docs", "screenshots", "byfinity-bots-bot-conversation.png"), animations: "disabled" });
+  await page.close();
+}
+
 async function captureMobile(browser, baseUrl) {
   const page = await preparePage(browser, baseUrl, { width: 430, height: 932 }, { scope: "bot", id: "research", threadId: "competitive-brief", heading: "Research Scout" });
   await page.screenshot({ path: resolve("docs", "screenshots", "byfinity-bots-mobile.png"), animations: "disabled" });
@@ -191,6 +202,7 @@ const browser = await chromium.launch();
 
 try {
   await mkdir(resolve("docs", "screenshots"), { recursive: true });
+  await captureBotConversation(browser, baseUrl);
   await captureDesktop(browser, baseUrl);
   await captureMobile(browser, baseUrl);
   console.log("Public screenshots generated in docs/screenshots");
