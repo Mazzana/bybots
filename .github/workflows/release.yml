@@ -190,7 +190,7 @@ jobs:
 
     steps:
       - name: Download qualified artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: bybots-*-${{ github.ref_name }}
           path: release
