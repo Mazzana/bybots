@@ -7,6 +7,11 @@ This is development-branch functionality, not a new published release.
 
 ## Connect another gateway
 
+Settings use an additive connection list, not the first-launch local/remote
+replacement selector. If your remote gateway was connected through the older
+selector, **Connect local Hermes too** restores the local connection alongside
+it without signing out the remote session. Relay remains a separate opt-in.
+
 1. Open **Settings → Hermes → Multiple gateways** as an administrator.
 2. Enter a recognizable name and the gateway URL, then **Add and configure**.
 3. Use Hermes native OAuth when offered, or enter that gateway's session token.

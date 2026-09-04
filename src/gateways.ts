@@ -1,5 +1,6 @@
 export interface GatewayView {
   id: string; label: string; baseUrl: string; hasToken: boolean;
+  defaultBaseUrl?: string;
   authMode: string; requiresReauthentication?: boolean; relay: boolean;
   relayStatus: "disabled" | "checking" | "ready" | "unavailable";
 }

@@ -11,6 +11,11 @@ export const LANGUAGE_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: LanguagePreference; label: string }>;
 
 export const french: Record<string, string> = {
+  "Manage simultaneous Hermes connections without replacing an existing gateway.": "Gérez plusieurs connexions Hermes simultanées sans remplacer une gateway existante.",
+  "To use another address, add a gateway. This connection stays separate.": "Pour utiliser une autre adresse, ajoutez une gateway. Cette connexion reste indépendante.",
+  "Adding a gateway keeps your existing connections. Bot relay is a separate permission, not a connection switch.": "L’ajout d’une gateway conserve les connexions existantes. Le relais entre Bots est une autorisation distincte, pas un sélecteur de connexion.",
+  "Connect local Hermes alongside your other gateways. Its session is detected automatically.": "Connectez Hermes local en même temps que vos autres gateways. Sa session est détectée automatiquement.",
+  "Connect local Hermes too": "Connecter aussi Hermes local",
   "Multiple gateways": "Plusieurs gateways",
   "Gateway management is unavailable on this Bridge.": "La gestion des gateways n’est pas disponible sur ce Bridge.",
   "Groups use one gateway. For cross-gateway exchanges, use Bot Chat and message_agent.": "Un groupe utilise une seule gateway. Pour les échanges entre gateways, utilisez Bot Chat et message_agent.",

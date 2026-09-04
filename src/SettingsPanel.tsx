@@ -182,10 +182,11 @@ export function SettingsPanel({ api, bots, machines, role, localHermesUnavailabl
           </section>}
 
           {section === "hermes" && <section aria-labelledby="settings-hermes">
-            <div className="settings-section-heading"><h3 id="settings-hermes">Hermes</h3><p>{t("Choose the Hermes gateway that orchestrates this application.")}</p></div>
+            <div className="settings-section-heading"><h3 id="settings-hermes">Hermes</h3><p>{t(api.listGateways ? "Manage simultaneous Hermes connections without replacing an existing gateway." : "Choose the Hermes gateway that orchestrates this application.")}</p></div>
             <DiagnosticsPanel api={api} />
-            <HermesConnectionPanel api={api} role={role} initialLocalUnavailable={localHermesUnavailable} onConnected={onGatewayChanged} />
-            <GatewaysPanel api={api} role={role} onChanged={onGatewayChanged} />
+            {api.listGateways
+              ? <GatewaysPanel api={api} role={role} onChanged={onGatewayChanged} />
+              : <HermesConnectionPanel api={api} role={role} initialLocalUnavailable={localHermesUnavailable} onConnected={onGatewayChanged} />}
             {machines.length > 0 && <><h4 className="settings-subheading">{t("Connected machines")}</h4><div className="machine-list settings-machines">{machines.map((machine) => <article key={machine.id}><span className={`machine-dot ${machine.status}`} /><div><strong>{t(machine.name)}</strong><small>{machine.kind === "local" ? t("Local runtime") : machine.url}</small></div><em>{machine.status === "connected" ? t("Connected") : machine.status === "needs_auth" ? t("Key required") : t("Configured")}</em></article>)}</div></>}
             {machines.length <= 1 && <p className="settings-help">{t("Remote peers are securely configured from Hermes with {command}.", { command: "hermes peer add" })}</p>}
           </section>}

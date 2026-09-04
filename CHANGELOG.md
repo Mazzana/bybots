@@ -41,6 +41,10 @@ All notable changes to this project will be documented in this file. The project
 
 ### Fixed
 
+- Settings now use one additive gateway-management flow instead of displaying
+  the legacy local/remote replacement picker beside it. Every saved connection
+  can be reauthenticated without editing its address. A local-reconnect action
+  preserves remote OAuth sessions and does not grant Bot relay automatically.
 - Late or misrouted live thread events no longer replace the selected
   conversation after switching Bots or threads.
 - Late history, send, retry, and attachment-read responses no longer replace a
