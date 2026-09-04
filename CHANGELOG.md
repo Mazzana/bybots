@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file. The project
 
 ## [Unreleased]
 
+### Added
+
+- Hermes Bot-to-Bot deliveries in the canonical `Bot Chat` are now normalized
+  into structured sender and recipient attribution and rendered as a distinct
+  delivery event instead of appearing to come from the human user. Current and
+  legacy Hermes 0.21 delivery prefixes remain supported.
+
 ## [0.3.1-alpha.1] - 2026-09-04
 
 ### Continuity and interaction quality

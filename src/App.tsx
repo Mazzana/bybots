@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Archive, ArrowUp, Bot as BotIcon, CalendarClock, ChevronLeft, ChevronRight, CirclePlus, FileText, Paperclip, Pencil, Plus, Reply, RotateCcw, Search, Settings, ShieldCheck, Users, X } from "lucide-react";
+import { AlertTriangle, Archive, ArrowRight, ArrowUp, Bot as BotIcon, CalendarClock, ChevronLeft, ChevronRight, CirclePlus, FileText, Paperclip, Pencil, Plus, Reply, RotateCcw, Search, Settings, ShieldCheck, Users, X } from "lucide-react";
 import { BotAvatar } from "./BotAvatar";
 import { BotIdentity } from "./BotIdentity";
 import { getBotDisplayName } from "./botDisplayName";
@@ -146,7 +146,9 @@ export interface BotUpdateInput { title?: string; description?: string; provider
 export interface BotUpdateResult { applied: Record<string, boolean>; confirmRequired: boolean; confirmMessage?: string }
 export type HermesFailureReason = "provider_auth_or_access" | "provider_quota_limit" | "provider_rate_limit" | "provider_server_error" | "context_overflow" | "missing_config" | "model_unavailable" | "runtime_offline" | "queued_expired" | "delivery_timeout" | "target_busy" | "agent_blocked" | "access_denied" | "invalid_request" | "unknown";
 export interface HermesFailure { reason: HermesFailureReason; title: string; detail: string; hint: string; retryable: boolean; action: "retry" | "configure" | "wait" | "reconnect" | "none" }
-export interface ChatMessage { role: "user" | "assistant"; text: string; failure?: HermesFailure }
+export interface AgentMessageIdentity { displayName: string; profile?: string; gatewayId?: string; gatewayLabel?: string }
+export interface AgentMessageAttribution { kind: "agent"; source: "hermes-delivery-prefix"; sender: AgentMessageIdentity; recipient: AgentMessageIdentity; status: "delivered" }
+export interface ChatMessage { role: "user" | "assistant"; text: string; failure?: HermesFailure; attribution?: AgentMessageAttribution }
 export interface Conversation { bot: string; sessionId: string; running: boolean; messages: ChatMessage[] }
 export interface BotThread { id: string; bot: string; title: string; preview: string; startedAt: number; messageCount: number; running: boolean }
 export type BotThreadStreamEvent =
@@ -351,6 +353,20 @@ function ReplyPreview({ target, onClose }: { target: ReplyTarget; onClose(): voi
   return <div className="reply-preview"><Reply size={15} /><div><strong>{t("Replying to {author}", { author: target.author })}</strong><span>{clippedPreview(target.text, t("Message"))}</span></div><IconButton label={t("Cancel reply")} onClick={onClose}><X size={16} /></IconButton></div>;
 }
 
+function AgentDelivery({ message, recipient, senderBot }: { message: ChatMessage; recipient: string; senderBot: Bot | null }) {
+  const { t } = useI18n();
+  const attribution = message.attribution!;
+  const sender = attribution.sender.displayName || attribution.sender.profile || t("A Bot");
+  return <article className="agent-delivery" role="note" aria-label={t("Bot-to-Bot message from {sender} to {recipient}", { sender, recipient })}>
+    <div className="agent-delivery-route">
+      {senderBot ? <BotAvatar bot={senderBot} size={28} /> : <span className="fallback-avatar"><BotIcon size={15} /></span>}
+      <span className="agent-delivery-copy"><small>{t("Bot-to-Bot message")}</small><strong><span>{sender}</span><ArrowRight size={14} aria-hidden /><span>{recipient}</span></strong></span>
+      <span className="agent-delivery-status">{t("Delivered")}</span>
+    </div>
+    {message.text && <div className="agent-delivery-body"><MessageContent text={message.text} /></div>}
+  </article>;
+}
+
 export function App({ api }: { api: BotsApi }) {
   const { locale, t, formatError } = useI18n();
   const [bots, setBots] = useState<Bot[]>([]);
@@ -490,7 +506,7 @@ export function App({ api }: { api: BotsApi }) {
     let previous: Conversation["messages"][number] | undefined;
     return (conversation?.messages ?? []).map((message) => {
       const result = previous;
-      if (message.role === "user") previous = message;
+      if (message.role === "user" && !message.attribution) previous = message;
       return result;
     });
   }, [conversation?.messages]);
@@ -1414,6 +1430,11 @@ export function App({ api }: { api: BotsApi }) {
             {!conversationLoading && !conversationError && hiddenBotMessageCount > 0 && <div className="history-load"><button type="button" onClick={showOlderBotMessages}>{t("Show {count} older messages", { count: Math.min(MESSAGE_WINDOW_SIZE, hiddenBotMessageCount) })}</button></div>}
             {!conversationLoading && !conversationError && visibleBotMessages.map((message, visibleIndex) => {
               const index = hiddenBotMessageCount + visibleIndex;
+              if (message.attribution?.kind === "agent") {
+                const senderProfile = message.attribution.sender.profile || message.attribution.sender.displayName;
+                const senderBot = bots.find((bot) => bot.name.toLowerCase() === senderProfile.toLowerCase()) ?? null;
+                return <AgentDelivery key={`agent-delivery-${index}`} message={message} recipient={activeTitle} senderBot={senderBot} />;
+              }
               const messageFailure = message.role === "assistant" ? message.failure ?? (isErrorMessage(message.text) ? fallbackFailure(message.text) : null) : null;
               const messageIsError = Boolean(messageFailure);
               const previousUserMessage = previousUserMessages[index];

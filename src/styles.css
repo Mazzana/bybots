@@ -982,6 +982,28 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 
 .message.user { align-self: flex-end; align-items: flex-end; }
 
+.agent-delivery {
+  width: min(620px, 100%);
+  margin: 4px auto;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid #303b46;
+  border-radius: 12px;
+  background: #181d22;
+}
+
+.agent-delivery-route { min-width: 0; display: flex; align-items: center; gap: 9px; }
+.agent-delivery-route .fallback-avatar { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: #223448; color: #9acbff; }
+.agent-delivery-copy { min-width: 0; display: grid; gap: 2px; }
+.agent-delivery-copy small { color: #79acd9; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.agent-delivery-copy strong { min-width: 0; display: flex; align-items: center; gap: 6px; color: #e3e9ef; font-size: 12px; font-weight: 650; }
+.agent-delivery-copy strong span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-delivery-copy svg { flex: 0 0 auto; color: #71869a; }
+.agent-delivery-status { margin-left: auto; padding: 3px 7px; flex: 0 0 auto; border-radius: 999px; background: #20352f; color: #82cfb8; font-size: 11px; font-weight: 650; }
+.agent-delivery-body { min-width: 0; padding: 9px 10px; border-left: 2px solid #446681; border-radius: 0 8px 8px 0; background: #14191e; }
+.agent-delivery-body .message-content { color: #d6dde4; font-size: 13px; }
+
 .message-author {
   min-width: 0;
   max-width: 100%;

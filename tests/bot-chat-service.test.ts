@@ -1,7 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
-import { BotChatService } from "../server/bot-chat-service";
+import { BotChatService, parseHermesAgentMessage } from "../server/bot-chat-service";
 
 describe("BotChatService", () => {
+  it("parses current and legacy Hermes Bot-to-Bot delivery prefixes", () => {
+    expect(parseHermesAgentMessage("Message from 🤖 Research Lead (@research): Verify this source", "finance")).toEqual({
+      text: "Verify this source",
+      attribution: {
+        kind: "agent",
+        source: "hermes-delivery-prefix",
+        sender: { displayName: "Research Lead", profile: "research" },
+        recipient: { displayName: "finance", profile: "finance" },
+        status: "delivered"
+      }
+    });
+    expect(parseHermesAgentMessage("[Message from agent 'ops'] Check deployment", "finance")).toMatchObject({
+      text: "Check deployment",
+      attribution: { sender: { displayName: "ops" }, recipient: { profile: "finance" } }
+    });
+    expect(parseHermesAgentMessage("I received a message from another Bot", "finance")).toBeNull();
+  });
+
   it("lists only Byfinity-owned Hermes threads and keeps the legacy canonical chat", async () => {
     const gateway = {
       subscribe: vi.fn().mockReturnValue(() => undefined),
@@ -76,6 +94,61 @@ describe("BotChatService", () => {
     });
     expect(gateway.request).toHaveBeenCalledWith("session.list", expect.objectContaining({ profile: "finance", title: "Bot Chat" }));
     expect(gateway.request).toHaveBeenCalledWith("session.resume", { session_id: "stored-1", profile: "finance" });
+  });
+
+  it("adds structured attribution to Hermes agent deliveries only in the canonical Bot Chat", async () => {
+    const gateway = {
+      subscribe: vi.fn().mockReturnValue(() => undefined),
+      request: vi.fn(async (method: string) => {
+        if (method === "session.list") return { sessions: [{ id: "stored-1", title: "Bot Chat" }] };
+        if (method === "session.resume") return {
+          session_id: "runtime-1",
+          stored_session_id: "stored-1",
+          messages: [
+            { role: "user", text: "Message from 🤖 Research Lead (@research): Verify this source" },
+            { role: "assistant", text: "Verified." }
+          ]
+        };
+        throw new Error(`unexpected ${method}`);
+      })
+    };
+    const chat = new BotChatService(gateway);
+
+    await expect(chat.getConversation("finance")).resolves.toMatchObject({
+      messages: [
+        {
+          role: "user",
+          text: "Verify this source",
+          attribution: {
+            kind: "agent",
+            sender: { displayName: "Research Lead", profile: "research" },
+            recipient: { profile: "finance" },
+            status: "delivered"
+          }
+        },
+        { role: "assistant", text: "Verified." }
+      ]
+    });
+  });
+
+  it("does not reinterpret an ordinary ByBots thread containing an agent-like prefix", async () => {
+    const gateway = {
+      subscribe: vi.fn().mockReturnValue(() => undefined),
+      request: vi.fn(async (method: string) => {
+        if (method === "session.list") return { sessions: [{ id: "stored-1", title: "Notes", source: "byfinity-bots" }] };
+        if (method === "session.resume") return {
+          session_id: "runtime-1",
+          stored_session_id: "stored-1",
+          messages: [{ role: "user", text: "Message from 🤖 Research (@research): quoted example" }]
+        };
+        throw new Error(`unexpected ${method}`);
+      })
+    };
+    const chat = new BotChatService(gateway);
+
+    await expect(chat.getThread("finance", "stored-1")).resolves.toMatchObject({
+      messages: [{ role: "user", text: "Message from 🤖 Research (@research): quoted example" }]
+    });
   });
 
   it("creates a canonical chat before sending the first message", async () => {

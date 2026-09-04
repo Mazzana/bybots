@@ -582,6 +582,41 @@ describe("ByBots UI", () => {
     expect(await screen.findByText("Prépare le rapport")).toBeInTheDocument();
   });
 
+  it("renders a Hermes Bot-to-Bot delivery as an attributed route instead of a user message", async () => {
+    const api = {
+      listBots: vi.fn().mockResolvedValue([
+        { name: "finance", title: "Finance", system: false },
+        { name: "research", title: "Research Lead", system: false }
+      ]),
+      getUsage: vi.fn(), createBot: vi.fn(), deleteBot: vi.fn(),
+      getConversation: vi.fn().mockResolvedValue({
+        bot: "finance",
+        sessionId: "s1",
+        running: false,
+        messages: [{
+          role: "user",
+          text: "Verify this source",
+          attribution: {
+            kind: "agent",
+            source: "hermes-delivery-prefix",
+            sender: { displayName: "Research Lead", profile: "research" },
+            recipient: { displayName: "finance", profile: "finance" },
+            status: "delivered"
+          }
+        }]
+      })
+    };
+    renderApp(api, "en");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open Bot Finance" }));
+
+    const delivery = await screen.findByRole("note", { name: "Bot-to-Bot message from Research Lead to Finance" });
+    expect(delivery).toHaveTextContent("Research Lead");
+    expect(delivery).toHaveTextContent("Finance");
+    expect(delivery).toHaveTextContent("Verify this source");
+    expect(delivery).toHaveTextContent("Delivered");
+  });
+
   it("keeps a separate draft for each conversation", async () => {
     const api = {
       listBots: vi.fn().mockResolvedValue([{ name: "finance", title: "Finance", system: false }, { name: "ops", title: "Operations", system: false }]),

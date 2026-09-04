@@ -126,6 +126,27 @@ The thread event route can emit `conversation`, `delta`, `archived`, and
 and per-principal limits, a maximum lifetime, and are closed when the consumer
 cannot keep up. A refused stream returns `429` with `Retry-After`.
 
+## Conversation message attribution
+
+Conversation snapshots may add an optional `attribution` object to a message.
+For a Hermes Bot-to-Bot delivery it currently has this bounded shape:
+
+```json
+{
+  "kind": "agent",
+  "source": "hermes-delivery-prefix",
+  "sender": { "displayName": "Research Lead", "profile": "research" },
+  "recipient": { "displayName": "finance", "profile": "finance" },
+  "status": "delivered"
+}
+```
+
+The Bridge derives this compatibility metadata only from current or legacy
+Hermes 0.21 delivery prefixes inside the canonical `Bot Chat`. It strips the
+transport prefix from the displayed body. User messages in other threads are
+not reinterpreted. `gatewayId` and `gatewayLabel` are reserved optional identity
+fields for the planned multi-gateway relay and are not populated yet.
+
 The canonical implementation and validation schemas remain in `server/app.ts`.
 Changing the public contract requires updating this document, focused API tests,
 and `CHANGELOG.md` in the same change.

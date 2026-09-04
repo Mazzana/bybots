@@ -9,6 +9,22 @@ export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   failure?: HermesFailure;
+  attribution?: AgentMessageAttribution;
+}
+
+export interface AgentMessageIdentity {
+  displayName: string;
+  profile?: string;
+  gatewayId?: string;
+  gatewayLabel?: string;
+}
+
+export interface AgentMessageAttribution {
+  kind: "agent";
+  source: "hermes-delivery-prefix";
+  sender: AgentMessageIdentity;
+  recipient: AgentMessageIdentity;
+  status: "delivered";
 }
 
 export interface BotConversation {
@@ -54,6 +70,35 @@ interface StoredSession {
   started_at?: number;
   message_count?: number;
   source?: string;
+}
+
+// Hermes 0.21 delivers Bot-to-Bot messages as user-role turns so the receiving
+// Bot can answer them. The prefix is the stable attribution convention used by
+// Hermes Desktop; keep the legacy form so existing canonical chats hydrate too.
+const HERMES_AGENT_MESSAGE_RE = /^(?:Message from (?:🤖\s*)?([^:\n(]{1,64}?)(?:\s*\(@([a-z0-9][a-z0-9_-]{0,63})\))?:\s*|\[Message from agent '([^']{1,64})'\]\s*)([\s\S]*)$/u;
+
+export function parseHermesAgentMessage(text: string, recipientProfile: string): Pick<ChatMessage, "text" | "attribution"> | null {
+  const match = HERMES_AGENT_MESSAGE_RE.exec(text);
+  if (!match) return null;
+
+  const displayName = String(match[1] || match[3] || "Agent").trim();
+  const profile = String(match[2] || "").trim();
+  return {
+    text: String(match[4] || "").trim(),
+    attribution: {
+      kind: "agent",
+      source: "hermes-delivery-prefix",
+      sender: {
+        displayName,
+        ...(profile ? { profile } : {})
+      },
+      recipient: {
+        displayName: recipientProfile,
+        profile: recipientProfile
+      },
+      status: "delivered"
+    }
+  };
 }
 
 export class BotChatService {
@@ -217,24 +262,31 @@ export class BotChatService {
       session_id: stored.resolved_id || stored.id,
       profile: bot
     });
+    const title = String(stored.title || NEW_THREAD_TITLE);
     const conversation: LiveConversation = {
       bot,
       sessionId: resumed.stored_session_id || stored.id,
       runtimeId: resumed.session_id,
-      title: String(stored.title || NEW_THREAD_TITLE),
+      title,
       preview: String(stored.preview || ""),
       startedAt: Number(stored.started_at || Date.now()),
       running: Boolean(resumed.running),
       messages: (resumed.messages ?? [])
         .filter((message: any) => message?.role === "user" || message?.role === "assistant")
-        .map((message: any) => ({
-          role: message.role,
-          text: this.messageText(message.text ?? message.content),
-          ...this.storedFailure(message)
-        }))
+        .map((message: any) => this.storedMessage(message, bot, title))
     };
     this.cache(conversation);
     return conversation;
+  }
+
+  private storedMessage(message: any, bot: string, title: string): ChatMessage {
+    const text = this.messageText(message.text ?? message.content);
+    const failure = this.storedFailure(message);
+    if (title === LEGACY_THREAD_TITLE && message.role === "user") {
+      const agentMessage = parseHermesAgentMessage(text, bot);
+      if (agentMessage) return { role: "user", ...agentMessage, ...failure };
+    }
+    return { role: message.role, text, ...failure };
   }
 
   private cache(conversation: LiveConversation): void {
