@@ -11,6 +11,17 @@ export const LANGUAGE_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: LanguagePreference; label: string }>;
 
 export const french: Record<string, string> = {
+  "Find a model": "Trouver un modèle",
+  "Search models": "Rechercher des modèles",
+  "Available models": "Modèles disponibles",
+  "No matching model": "Aucun modèle correspondant",
+  "Favorite models": "Modèles favoris",
+  "Recent models": "Modèles récents",
+  "All models": "Tous les modèles",
+  "Add favorite": "Ajouter aux favoris",
+  "Remove favorite": "Retirer des favoris",
+  "Use model": "Utiliser ce modèle",
+  "Favorites and recent models are stored only on this device.": "Les favoris et modèles récents sont enregistrés uniquement sur cet appareil.",
   "Language": "Langue",
   "System language": "Langue du système",
   "English": "Anglais",

@@ -456,7 +456,7 @@ button.brand:focus-visible { outline: 2px solid #d8d8dc; outline-offset: -2px; }
 .setting-copy strong, .setting-toggle strong, .settings-status strong { color: #e7e7e9; font-size: 12px; }
 .setting-copy small, .setting-toggle small, .settings-status small { margin-top: 4px; color: #85858c; font-size: 12px; line-height: 1.4; }
 .setting-card .select-control, .mcp-bot-picker .select-control { min-width: 150px; }
-.setting-card select, .mcp-bot-picker select { min-width: 150px; min-height: 44px; padding-left: 10px; border: 1px solid #3a3a3d; border-radius: 9px; background: #101011; color: #e6e6e8; font-size: 12px; }
+.model-library select, .setting-card select, .mcp-bot-picker select { min-width: 150px; min-height: 44px; padding-left: 10px; border: 1px solid #3a3a3d; border-radius: 9px; background: #101011; color: #e6e6e8; font-size: 12px; }
 .setting-card select option, .mcp-bot-picker select option { background: #19191a; color: #eee; }
 
 .setting-toggle { cursor: pointer; }
@@ -750,11 +750,14 @@ html.reduce-motion .first-run-waiting > svg { animation: none; }
 .routines-shortcut:hover { border-color: #4a4d53; background: #24262a; color: #fff; }
 
 .chat-model {
+  display: flex;
+  align-items: center;
   min-width: 0;
   max-width: min(280px, 32vw);
 }
 
 .chat-model-control {
+  flex: 1;
   min-width: 0;
   min-height: 44px;
   padding: 0 9px;
@@ -791,6 +794,8 @@ html.reduce-motion .first-run-waiting > svg { animation: none; }
 .chat-model-control option, .chat-model-control optgroup { background: #181818; color: #eee; }
 .chat-model.has-error .chat-model-control { border-color: #6e3838; color: #d67676; }
 .chat-model .model-saved { color: #62ad8f; }
+.model-library .modal-actions { font-size: 12px; }
+.model-library input { font-size: 16px; }
 
 .details-toggle {
   width: 44px;
@@ -1782,7 +1787,8 @@ html.reduce-motion .first-run-waiting > svg { animation: none; }
   }
   .conversation-title h1 { max-width: none; font-size: 16px; }
   .mobile-back-button { width: 44px; height: 44px; display: grid; margin-right: -3px; color: #d5d5da; }
-  .conversation-actions { display: none; }
+  .conversation-actions { display: flex; }
+  .conversation-actions > :not(.chat-model), .chat-model-control { display: none; }
   .thread-tabs-bar { padding-inline: 7px; }
   .thread-tab { max-width: 164px; padding-inline: 10px; }
   .thread-tab-new span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }

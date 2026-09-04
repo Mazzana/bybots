@@ -1,9 +1,13 @@
-import { useEffect, useId, useMemo, useState } from "react";
-import { AlertTriangle, Check, Cpu, LoaderCircle } from "lucide-react";
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Check, Cpu, LoaderCircle, Search } from "lucide-react";
 import type { AccessRole, Bot, BotConfiguration, BotsApi, BotUpdateResult } from "./App";
 import { getBotDisplayName } from "./botDisplayName";
 import { useI18n } from "./i18n";
 import { SelectControl } from "./SelectControl";
+import { IconButton } from "./IconButton";
+import { rememberModel } from "./modelLibrary";
+
+const ModelLibraryDialog = lazy(() => import("./ModelLibraryDialog"));
 
 function modelValue(provider: string, model: string) {
   return JSON.stringify([provider, model]);
@@ -42,8 +46,13 @@ export function ChatModelSelector({ api, bot, role, running, refreshKey = 0 }: C
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const request = useRef(0);
 
   useEffect(() => {
+    request.current += 1;
+    setSaving(false);
+    setLibraryOpen(false);
     if (!api.getBotConfiguration) {
       setLoading(false);
       return;
@@ -63,7 +72,7 @@ export function ChatModelSelector({ api, bot, role, running, refreshKey = 0 }: C
     }).finally(() => {
       if (active) setLoading(false);
     });
-    return () => { active = false; };
+    return () => { active = false; request.current += 1; };
   }, [api, bot.name, refreshKey]);
 
   const providerOptions = useMemo(() => (config?.providers ?? [])
@@ -84,9 +93,9 @@ export function ChatModelSelector({ api, bot, role, running, refreshKey = 0 }: C
         ? t("Only administrators can change Bot models.")
         : t("Choose from the models available in Hermes.");
 
-  async function changeModel(event: React.ChangeEvent<HTMLSelectElement>) {
-    if (!config || !api.updateBot || saving) return;
-    const nextValue = event.target.value;
+  async function changeModel(nextValue: string) {
+    if (disabled || !config || !api.updateBot) return;
+    const owner = request.current;
     const previousValue = currentValue;
     const [provider, model] = parseModelValue(nextValue);
     setSelectedValue(nextValue);
@@ -95,6 +104,7 @@ export function ChatModelSelector({ api, bot, role, running, refreshKey = 0 }: C
     setError("");
     try {
       let result = await api.updateBot(bot.name, { provider, model });
+      if (request.current !== owner) return;
       if (result.confirmRequired) {
         const accepted = window.confirm(result.confirmMessage || t("This model may cost more. Confirm this choice?"));
         if (!accepted) {
@@ -102,22 +112,26 @@ export function ChatModelSelector({ api, bot, role, running, refreshKey = 0 }: C
           return;
         }
         result = await api.updateBot(bot.name, { provider, model, confirmExpensiveModel: true });
+        if (request.current !== owner) return;
       }
       if (modelWasRejected(result)) throw new Error(t("Hermes did not save the selected model."));
       setConfig((current) => current ? { ...current, provider, model } : current);
       setSaved(true);
+      rememberModel(nextValue);
+      setLibraryOpen(false);
     } catch (cause) {
+      if (request.current !== owner) return;
       setSelectedValue(previousValue);
       setError(String(cause));
     } finally {
-      setSaving(false);
+      if (request.current === owner) setSaving(false);
     }
   }
 
   if (!api.getBotConfiguration) return null;
 
   return <div className={`chat-model ${error ? "has-error" : ""}`} title={hint}>
-    <label className="chat-model-control">
+    <div className="chat-model-control">
       <Cpu size={15} aria-hidden="true" />
       <span className="sr-only">{label}</span>
       <SelectControl
@@ -126,7 +140,7 @@ export function ChatModelSelector({ api, bot, role, running, refreshKey = 0 }: C
         aria-invalid={Boolean(error)}
         value={selectedValue}
         disabled={disabled}
-        onChange={(event) => void changeModel(event)}
+        onChange={(event) => void changeModel(event.target.value)}
       >
         {loading && <option value="">{t("Loading models…")}</option>}
         {!loading && !config && <option value="">{t("Models unavailable")}</option>}
@@ -139,7 +153,9 @@ export function ChatModelSelector({ api, bot, role, running, refreshKey = 0 }: C
       {saving && <LoaderCircle className="spin" size={15} aria-hidden="true" />}
       {!saving && saved && <Check className="model-saved" size={15} aria-hidden="true" />}
       {!saving && error && <AlertTriangle size={15} aria-hidden="true" />}
-    </label>
+    </div>
+    <IconButton label={t("Find a model")} disabled={disabled} onClick={() => setLibraryOpen(true)}><Search size={15} /></IconButton>
+    {libraryOpen && <Suspense fallback={<span role="status">{t("Loading models…")}</span>}><ModelLibraryDialog current={selectedValue} busy={saving || running} error={error ? formatError(error) : ""} options={providerOptions.flatMap((provider) => provider.models.map((model) => ({ value: modelValue(provider.slug, model), model, provider: provider.name || provider.slug })))} onChoose={(value) => void changeModel(value)} onClose={() => setLibraryOpen(false)} /></Suspense>}
     <span className="sr-only" id={statusId} role="status" aria-live="polite">
       {saving ? t("Changing model…") : saved ? t("Model saved.") : hint}
     </span>

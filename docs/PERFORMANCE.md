@@ -10,7 +10,7 @@ build on supported x64 Windows hardware.
 | Select Bot to display cached thread | 1 second | 500-message Hermes thread |
 | New message to first visible progress | 250 ms | local Bridge before provider latency |
 | Application entry JavaScript | 525 KiB raw | `dist/assets/index-*.js` |
-| Total application JavaScript | 560 KiB raw | sum of `dist/assets/*.js` |
+| Total application JavaScript | 565 KiB raw | sum of `dist/assets/*.js` |
 | Total application CSS | 84 KiB raw | sum of `dist/assets/*.css` |
 
 `npm run build` enforces the bundle limits. The browser smoke suite covers a
@@ -38,3 +38,14 @@ Markdown graph is 521,563 bytes, total JavaScript is 565,035 bytes, and CSS is
 KiB for total JavaScript, and 84 KiB for CSS. These limits leave 33.9%, 1.5%,
 and 2.9% headroom respectively; future feature work must remain within them or
 provide another measured review.
+
+## Model library measurement
+
+The searchable model library adds device-local favorites and eight recent
+successful selections. It reuses the native select and shared dialog rather
+than adding a UI dependency. The selector and its search dialog now load in
+separate on-demand chunks. Compared with the reliability-audit build (573,024
+bytes total JavaScript and a 363,273-byte entry), the final measured build is
+577,852 bytes total with a 360,394-byte entry: about 4.8 KB more overall, but
+2.9 KB less in the initial entry. The total JavaScript budget moves from 560 to
+565 KiB for this feature; the entry and CSS budgets remain unchanged.

@@ -40,6 +40,24 @@ contain sensitive text; they are not synchronized between devices.
 
 ## Configure a Bot
 
+### Find a model quickly
+
+Use **Find a model** (the search icon in a Bot conversation header) to search
+the models advertised by Hermes. Search matches model and provider names.
+**Add favorite** keeps a model in the favorites section; **Use model** applies
+the selection. The list also groups the eight most recent successful choices.
+On mobile, this compact shortcut remains available without showing the full
+desktop toolbar. The normal desktop selector still supports inheriting the
+main profile's model.
+
+Favorites (up to 24) and recent model identifiers stay in the current browser
+or Electron profile, not in Hermes, and do not contain credentials. Unavailable
+models are hidden even if previously favorited. Model changes require an
+administrator and are disabled during a running answer. Hermes confirmation
+and rejection rules continue to apply.
+
+### Profile configuration
+
 An administrator can create or edit a Bot from its configuration workspace:
 
 1. **Identity** — name, mission, and appearance.

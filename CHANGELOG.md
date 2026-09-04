@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The project
 
 ### Added
 
+- An on-demand model search dialog in the chat header with device-local
+  favorites and the eight most recent successful model selections. The list
+  only includes models advertised by the current Hermes Bot configuration.
+  Model switching retains role, running-state, and expensive-model safeguards.
 - Hermes Bot-to-Bot deliveries in the canonical `Bot Chat` are now normalized
   into structured sender and recipient attribution and rendered as a distinct
   delivery event instead of appearing to come from the human user. Current and
