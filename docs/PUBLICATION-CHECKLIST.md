@@ -8,18 +8,18 @@ publication with a stable product release.
 - [x] Create or select the official public repository.
 - [x] Add its URL to `package.json` and replace the clone placeholders in
   `README.md` and `docs/INSTALLATION.md`.
-- [ ] Configure the default branch and branch protections.
-- [ ] Confirm that the public name, description, topics, and icon all use
+- [x] Configure the default branch and branch protections.
+- [x] Confirm that the public name, description, topics, and icon all use
   **ByBots**.
 
 ## Privacy
 
-- [ ] Scan the complete Git history, not only the current tree, for secrets.
-- [ ] Confirm that no infrastructure runbook, `.env` file, token, Hermes
+- [x] Scan the complete public Git history, not only the current tree, for secrets.
+- [x] Confirm that no infrastructure runbook, `.env` file, token, Hermes
   archive, backup, or raw diagnostics report is tracked.
-- [ ] Keep VPS procedures and infrastructure coordinates in a separate private
+- [x] Keep VPS procedures and infrastructure coordinates in a separate private
   operations repository.
-- [ ] Enable private vulnerability reporting on the Git hosting platform.
+- [x] Enable private vulnerability reporting on the Git hosting platform.
 
 `npm run test:docs` fails when a known private runbook is tracked, forbidden
 infrastructure data appears in public documentation, public documentation
