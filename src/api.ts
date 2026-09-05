@@ -165,12 +165,13 @@ export const api: BotsApi = {
     return request<void>(`/api/bots/${encodeURIComponent(name)}/threads/${encodeURIComponent(threadId)}`, { method: "DELETE" });
   },
   watchThread(name, threadId, listener, onStatus) {
-    const controller = new AbortController();
+    let controller: AbortController | undefined;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let retryDelay = 1_000;
     let terminal = false;
     const reconnect = (cause?: unknown) => {
-      if (controller.signal.aborted || terminal) return;
+      if (terminal) return;
       onStatus("disconnected", cause);
       retryTimer = setTimeout(() => {
         onStatus("connecting");
@@ -179,11 +180,20 @@ export const api: BotsApi = {
       retryDelay = Math.min(retryDelay * 2, 15_000);
     };
     const connect = async () => {
+      if (terminal) return;
+      const attempt = new AbortController();
+      controller = attempt;
+      const armWatchdog = () => {
+        clearTimeout(watchdog);
+        watchdog = setTimeout(() => attempt.abort(), 45_000);
+      };
+      armWatchdog();
       try {
         const response = await fetch(`/api/bots/${encodeURIComponent(name)}/threads/${encodeURIComponent(threadId)}/events`, {
           headers: { accept: "text/event-stream" },
-          signal: controller.signal
+          signal: attempt.signal
         });
+        if (terminal || attempt.signal.aborted) { void response.body?.cancel(); if (!terminal) reconnect(); return; }
         if (!response.ok) throw new Error(`Thread stream failed (${response.status})`);
         if (!response.body) throw new Error("Thread stream is unavailable");
         retryDelay = 1_000;
@@ -193,7 +203,9 @@ export const api: BotsApi = {
         let buffer = "";
         while (true) {
           const result = await reader.read();
+          if (terminal || attempt.signal.aborted) break;
           if (result.done) break;
+          armWatchdog();
           const parsed = parseEventStreamChunk(buffer, decoder.decode(result.value, { stream: true }));
           buffer = parsed.buffer;
           for (const event of parsed.events) {
@@ -204,12 +216,15 @@ export const api: BotsApi = {
         reconnect();
       } catch (cause) {
         reconnect(cause);
+      } finally {
+        clearTimeout(watchdog);
       }
     };
     void connect();
     return () => {
       terminal = true;
-      controller.abort();
+      controller?.abort();
+      clearTimeout(watchdog);
       if (retryTimer) clearTimeout(retryTimer);
     };
   },

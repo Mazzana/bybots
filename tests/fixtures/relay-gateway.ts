@@ -41,6 +41,9 @@ export async function relayGateway(label: string) {
   const address = server.address() as { port: number };
   return {
     url: `http://127.0.0.1:${address.port}`, state,
+    emitSession(type: string, sessionId: string, payload: Record<string, unknown>) {
+      for (const socket of sockets.clients) socket.send(JSON.stringify({ jsonrpc: "2.0", method: "event", params: { type, session_id: sessionId, payload } }));
+    },
     setOnline(online: boolean) {
       state.online = online;
       if (!online) for (const socket of sockets.clients) socket.terminate();

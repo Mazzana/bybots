@@ -4,6 +4,22 @@ import { api, parseEventStreamChunk } from "../src/api";
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("web API client", () => {
+  it("reconnects a silent live stream and cancels its watchdog when stopped", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn((_path: string, init: RequestInit) => Promise.resolve(new Response(new ReadableStream({ start(controller) {
+      init.signal!.addEventListener("abort", () => controller.error(new Error("aborted")), { once: true });
+    } }))));
+    vi.stubGlobal("fetch", fetcher);
+    const status = vi.fn();
+    const stop = api.watchThread!("writer", "thread", vi.fn(), status);
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect(status).toHaveBeenCalledWith("disconnected", expect.anything());
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    stop();
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it("reports missing multi-gateway support instead of returning an invalid list to React", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
     await expect(api.listGateways!()).rejects.toThrow("Gateway management is unavailable");

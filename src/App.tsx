@@ -471,6 +471,7 @@ export function App({ api }: { api: BotsApi }) {
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const selectionRequest = useRef(0);
+  const streamSequence = useRef(0);
   const gatewayGeneration = useRef(0);
   const autoRestoreAttempted = useRef(false);
   const previousBotRun = useRef({ key: "", running: false });
@@ -761,6 +762,7 @@ export function App({ api }: { api: BotsApi }) {
       const owner = event.type === "conversation" ? event.conversation.bot : event.bot;
       const threadId = event.type === "conversation" ? event.conversation.sessionId : event.threadId;
       if (!active || owner !== selected || threadId !== selectedThreadId) return;
+      streamSequence.current += 1;
       if (event.type === "conversation") {
         setConversation(event.conversation);
         syncThread(event.conversation);
@@ -788,25 +790,28 @@ export function App({ api }: { api: BotsApi }) {
 
   useEffect(() => {
     if (!selected || !conversation?.running || (!api.getConversation && !api.getThread)) return;
-    if (supportsThreads && selectedThreadId && api.watchThread && threadStreamStatus !== "disconnected") return;
+    const delay = supportsThreads && selectedThreadId && api.watchThread && threadStreamStatus === "connected" ? 3_000 : 700;
     let cancelled = false;
     let timer = 0;
     const poll = async () => {
+      const sequence = streamSequence.current;
       try {
         const next = supportsThreads && selectedThreadId
           ? await api.getThread!(selected, selectedThreadId)
           : await api.getConversation!(selected);
         if (cancelled) return;
-        setConversation(next);
-        syncThread(next);
-        if (next.running) timer = window.setTimeout(poll, 700);
+        if (streamSequence.current === sequence) {
+          setConversation(next);
+          syncThread(next);
+        }
+        timer = window.setTimeout(poll, delay);
       } catch (cause) {
         if (cancelled) return;
         setError(String(cause));
         timer = window.setTimeout(poll, 1_500);
       }
     };
-    timer = window.setTimeout(poll, 700);
+    timer = window.setTimeout(poll, delay);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [api, conversation?.running, selected, selectedThreadId, supportsThreads, threadStreamStatus]);
 
@@ -1077,6 +1082,7 @@ export function App({ api }: { api: BotsApi }) {
     const requestId = selectionRequest.current;
     const generation = gatewayGeneration.current;
     const sentAttachments = botAttachments;
+    const sequence = streamSequence.current;
     const reply = replyTarget?.scope === "bot" ? replyTarget : null;
     const wireText = replyWireText(attachmentWireText(text, botAttachments, t("Review the attached files and answer my request.")), reply, t);
     setDraft("");
@@ -1088,8 +1094,7 @@ export function App({ api }: { api: BotsApi }) {
         ? await api.sendThreadMessage!(selected, selectedThreadId, wireText)
         : await api.sendMessage!(selected, wireText);
       if (selectionRequest.current !== requestId) return;
-      setConversation(next);
-      syncThread(next);
+      if (streamSequence.current === sequence) { setConversation(next); syncThread(next); }
       setBotAttachments((items) => items.filter((item) => !sentAttachments.includes(item)));
     } catch (cause) {
       if (gatewayGeneration.current !== generation) return;
@@ -1148,6 +1153,7 @@ export function App({ api }: { api: BotsApi }) {
     const requestId = selectionRequest.current;
     const generation = gatewayGeneration.current;
     const sentAttachments = scope === "bot" ? botAttachments : groupAttachments;
+    const sequence = streamSequence.current;
     setRetrying(true);
     setFailedSend(null);
     setError("");
@@ -1157,8 +1163,7 @@ export function App({ api }: { api: BotsApi }) {
           ? await api.sendThreadMessage!(selected, selectedThreadId, wireText)
           : await api.sendMessage!(selected, wireText);
         if (selectionRequest.current !== requestId) return;
-        setConversation(next);
-        syncThread(next);
+        if (streamSequence.current === sequence) { setConversation(next); syncThread(next); }
         setDraft((current) => current === draftText ? "" : current);
         setBotAttachments((items) => items.filter((item) => !sentAttachments.includes(item)));
       } else if (scope === "group" && selectedGroup && api.sendGroupMessage) {

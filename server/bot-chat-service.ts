@@ -49,6 +49,7 @@ export interface BotThreadSummary {
 export type BotThreadEvent =
   | { type: "conversation"; conversation: BotConversation }
   | { type: "delta"; bot: string; threadId: string; text: string }
+  | { type: "reconnect"; bot: string; threadId: string }
   | { type: "archived"; bot: string; threadId: string };
 
 interface GatewayPort {
@@ -108,9 +109,24 @@ export class BotChatService {
   private readonly runtimeSessions = new Map<string, string>();
   private readonly openingConversations = new Map<string, Promise<LiveConversation>>();
   private readonly threadListeners = new Map<string, Set<(event: BotThreadEvent) => void>>();
+  private readonly revisions = new Map<string, number>();
+  private readonly activityAt = new Map<string, number>();
+  private readonly refreshes = new Map<string, Promise<void>>();
+  private readonly watchTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly unsubscribe: () => void;
+  private closed = false;
 
   constructor(private readonly gateway: GatewayPort) {
-    gateway.subscribe((event) => this.onGatewayEvent(event));
+    this.unsubscribe = gateway.subscribe((event) => this.onGatewayEvent(event));
+  }
+
+  close() {
+    this.closed = true;
+    this.unsubscribe();
+    for (const [key, conversation] of this.conversations) {
+      this.emit(key, { type: "reconnect", bot: conversation.bot, threadId: conversation.sessionId });
+      this.stopWatching(key);
+    }
   }
 
   async listThreads(bot: string): Promise<BotThreadSummary[]> {
@@ -160,25 +176,32 @@ export class BotChatService {
   }
 
   async getThread(bot: string, threadId: string): Promise<BotConversation> {
-    return this.publicConversation(await this.openThread(bot, threadId));
+    const conversation = await this.openThread(bot, threadId);
+    await this.refreshQuietConversation(conversation);
+    return this.publicConversation(conversation);
   }
 
   async watchThread(bot: string, threadId: string, listener: (event: BotThreadEvent) => void): Promise<() => void> {
     const conversation = await this.openThread(bot, threadId);
+    if (this.closed) {
+      listener({ type: "reconnect", bot, threadId });
+      return () => {};
+    }
     const key = this.key(bot, conversation.sessionId);
     const listeners = this.threadListeners.get(key) ?? new Set<(event: BotThreadEvent) => void>();
     listeners.add(listener);
     this.threadListeners.set(key, listeners);
+    this.scheduleRefresh(key, conversation);
     try {
       listener({ type: "conversation", conversation: this.publicConversation(conversation) });
     } catch (cause) {
       listeners.delete(listener);
-      if (listeners.size === 0) this.threadListeners.delete(key);
+      if (listeners.size === 0) this.stopWatching(key);
       throw cause;
     }
     return () => {
       listeners.delete(listener);
-      if (listeners.size === 0) this.threadListeners.delete(key);
+      if (listeners.size === 0) this.stopWatching(key);
     };
   }
 
@@ -224,6 +247,8 @@ export class BotChatService {
     conversation.messages.push(submittedMessage);
     conversation.preview = text;
     conversation.running = true;
+    // Publish the submitted turn before Hermes can emit its first token.
+    this.emitConversation(conversation);
     try {
       await this.gateway.request("prompt.submit", { session_id: conversation.runtimeId, text });
     } catch (cause) {
@@ -239,7 +264,67 @@ export class BotChatService {
       }
       throw cause;
     }
-    this.emitConversation(conversation);
+  }
+
+  private stopWatching(key: string) {
+    this.threadListeners.delete(key);
+    clearTimeout(this.watchTimers.get(key));
+    this.watchTimers.delete(key);
+  }
+
+  private scheduleRefresh(key: string, conversation: LiveConversation) {
+    if (this.closed || this.watchTimers.has(key)) return;
+    const timer = setTimeout(async () => {
+      try { await this.refreshQuietConversation(conversation); }
+      finally {
+        this.watchTimers.delete(key);
+        if (this.threadListeners.has(key)) this.scheduleRefresh(key, conversation);
+      }
+    }, 3_000);
+    timer.unref?.();
+    this.watchTimers.set(key, timer);
+  }
+
+  private refreshQuietConversation(conversation: LiveConversation): Promise<void> {
+    const key = this.key(conversation.bot, conversation.sessionId);
+    if (this.closed || Date.now() - (this.activityAt.get(key) ?? 0) < 3_000) return Promise.resolve();
+    const existing = this.refreshes.get(key);
+    if (existing) return existing;
+    const revision = this.revisions.get(key) ?? 0;
+    const refresh = (async () => {
+      try {
+        // Reattach the live session after a socket reconnect and recover missed
+        // history/inflight text. A cached transcript is not a liveness check.
+        let snapshot;
+        try { snapshot = await this.gateway.request("session.activate", { session_id: conversation.runtimeId }); }
+        catch (cause) {
+          if ((cause as { code?: number }).code !== 4001) throw cause;
+          snapshot = await this.gateway.request("session.resume", { session_id: conversation.sessionId, profile: conversation.bot });
+        }
+        if (this.closed || this.conversations.get(key) !== conversation || (this.revisions.get(key) ?? 0) !== revision) return;
+        if (!Array.isArray(snapshot?.messages) || snapshot.messages_omitted || typeof snapshot.running !== "boolean") return;
+        const messages: ChatMessage[] = snapshot.messages.filter((message: any) => message?.role === "user" || message?.role === "assistant")
+          .map((message: any) => this.storedMessage(message, conversation.bot, conversation.title));
+        const inflight = snapshot.inflight;
+        if (inflight && (snapshot.running || inflight.error)) {
+          const user = this.messageText(inflight.user);
+          if (user && !(messages.at(-1)?.role === "user" && messages.at(-1)?.text === user)) messages.push(this.storedMessage({ role: "user", text: user }, conversation.bot, conversation.title));
+          const assistant = this.messageText(inflight.assistant);
+          if (assistant || inflight.error) messages.push({ role: "assistant", text: assistant, ...this.storedFailure(inflight) });
+        }
+        if (typeof snapshot.session_id === "string" && snapshot.session_id !== conversation.runtimeId) {
+          this.runtimeSessions.delete(conversation.runtimeId);
+          conversation.runtimeId = snapshot.session_id;
+          this.runtimeSessions.set(conversation.runtimeId, key);
+        }
+        const changed = conversation.running !== snapshot.running || JSON.stringify(conversation.messages) !== JSON.stringify(messages);
+        conversation.messages = messages; conversation.running = snapshot.running;
+        if (changed) this.emitConversation(conversation);
+      } catch { /* Keep existing text; the next watched refresh retries without resending. */ }
+      finally { this.activityAt.set(key, Date.now()); }
+    })().finally(() => this.refreshes.delete(key));
+    this.refreshes.set(key, refresh);
+    return refresh;
   }
 
   private async openCanonical(bot: string): Promise<LiveConversation> {
@@ -333,6 +418,7 @@ export class BotChatService {
   private cache(conversation: LiveConversation): void {
     const key = this.key(conversation.bot, conversation.sessionId);
     this.conversations.set(key, conversation);
+    this.activityAt.set(key, Date.now());
     this.runtimeSessions.set(conversation.runtimeId, key);
   }
 
@@ -341,6 +427,14 @@ export class BotChatService {
     const key = this.runtimeSessions.get(event.sessionId);
     const conversation = key ? this.conversations.get(key) : undefined;
     if (!conversation) return;
+    this.revisions.set(key!, (this.revisions.get(key!) ?? 0) + 1);
+    this.activityAt.set(key!, Date.now());
+
+    if (event.type === "message.start") {
+      if (conversation.messages.at(-1)?.role === "assistant" && conversation.messages.at(-1)?.text) conversation.messages.push({ role: "assistant", text: "" });
+      conversation.running = true;
+      this.emitConversation(conversation);
+    }
 
     const dispatch = agentDispatch(event);
     if (dispatch) {
@@ -396,6 +490,9 @@ export class BotChatService {
   }
 
   private emitConversation(conversation: LiveConversation): void {
+    const key = this.key(conversation.bot, conversation.sessionId);
+    this.revisions.set(key, (this.revisions.get(key) ?? 0) + 1);
+    this.activityAt.set(key, Date.now());
     this.emit(this.key(conversation.bot, conversation.sessionId), {
       type: "conversation",
       conversation: this.publicConversation(conversation)

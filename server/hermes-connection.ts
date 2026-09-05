@@ -175,17 +175,18 @@ export function isSecureHermesUrl(value: string) {
 function createDefaultRuntime(connection: HermesConnectionCredentials): HermesRuntime {
   const authMode = connection.authMode ?? "session";
   const gateway = connection.token ? new HermesGateway({ baseUrl: connection.baseUrl, token: connection.token, authMode }) : undefined;
+  const chat = gateway ? new BotChatService(gateway) : undefined;
   const unavailable = async (..._args: unknown[]): Promise<never> => { throw new Error("Hermes session token is required"); };
   return {
     gateway,
     hermes: new HermesClient({ baseUrl: connection.baseUrl, authMode, ...(connection.token ? { sessionToken: connection.token } : {}), ...(gateway ? { gateway } : {}) }),
-    chat: gateway ? new BotChatService(gateway) : {
+    chat: chat ?? {
       getConversation: unavailable, sendMessage: unavailable, listThreads: unavailable, createThread: unavailable,
       getThread: unavailable, sendThreadMessage: unavailable, renameThread: unavailable, archiveThread: unavailable,
       watchThread: unavailable
     },
     groups: gateway ? new GroupChatService(gateway) : { listGroups: unavailable, createGroup: unavailable, sendMessage: unavailable, stop: unavailable },
-    close: () => gateway?.close()
+    close: () => { chat?.close(); gateway?.close(); }
   };
 }
 
