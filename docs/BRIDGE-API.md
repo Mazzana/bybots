@@ -172,5 +172,11 @@ not reinterpreted. In the multi-gateway preview, `gatewayId`, `gatewayLabel` and
   already accepted by Hermes.
 
 The canonical implementation and validation schemas remain in `server/app.ts`.
+Live thread SSE forwards `delta` frames as Hermes generates them. A `reconnect`
+control frame closes an obsolete stream after runtime replacement; clients should
+reopen it, not archive the conversation or resend the prompt. Quiet watched
+sessions reconcile with Hermes every three seconds, skipping reconciliation
+while recent events are arriving. Browsers reconnect after 45 seconds without
+any stream bytes (the Bridge normally sends a heartbeat every 15 seconds).
 Changing the public contract requires updating this document, focused API tests,
 and `CHANGELOG.md` in the same change.

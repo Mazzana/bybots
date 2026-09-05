@@ -523,7 +523,7 @@ export function createApp({ hermes, chat, groups, connection, gateways, remoteTo
               if (closed) return;
               const type = event && typeof event === "object" && "type" in event ? String(event.type) : "message";
               if (!write(`event: ${type}\ndata: ${JSON.stringify(event)}\n\n`)) return;
-              if (type === "archived") reply.raw.end();
+              if (type === "archived" || type === "reconnect") reply.raw.end();
             });
             if (closed) unsubscribe();
           } catch (cause) {

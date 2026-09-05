@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { App, type BotsApi, type Conversation } from "../src/App";
+import { App, type BotsApi, type Conversation, type BotThreadStreamEvent } from "../src/App";
 import { LanguageProvider } from "../src/i18n";
 
 afterEach(() => { cleanup(); window.localStorage.clear(); vi.restoreAllMocks(); });
@@ -39,6 +39,27 @@ async function send(text: string) {
 }
 
 describe("conversation request ownership", () => {
+  it("renders tokens before completion and ignores a late HTTP acknowledgement", async () => {
+    let listener!: (event: BotThreadStreamEvent) => void;
+    const old = deferred<Conversation>();
+    setup({
+      listThreads: vi.fn(async (bot) => [{ id: `${bot}-session`, bot, title: "Bot Chat", preview: "", startedAt: 1, messageCount: 0, running: false }]),
+      getThread: vi.fn(async (bot) => ({ ...conversation(bot), messages: [] })),
+      createThread: vi.fn(), renameThread: vi.fn(), archiveThread: vi.fn(),
+      sendThreadMessage: vi.fn(() => old.promise),
+      watchThread: (_bot, _id, next, status) => { listener = next; status("connected"); return () => {}; }
+    });
+    await openBot("alpha");
+    await send("Question");
+    const pending: Conversation = { bot: "alpha", sessionId: "alpha-session", running: true, messages: [{ role: "user", text: "Question" }] };
+    act(() => listener({ type: "conversation", conversation: pending }));
+    act(() => listener({ type: "delta", bot: "alpha", threadId: "alpha-session", text: "First fragment" }));
+    expect(await screen.findByText("First fragment", { selector: "p" })).toBeInTheDocument();
+    await act(async () => old.resolve(pending));
+    expect(screen.getByText("First fragment", { selector: "p" })).toBeInTheDocument();
+    act(() => listener({ type: "delta", bot: "alpha", threadId: "alpha-session", text: " and the next" }));
+    expect(await screen.findByText("First fragment and the next", { selector: "p" })).toBeInTheDocument();
+  });
   it("ignores a late legacy history response after selecting another bot", async () => {
     const old = deferred<Conversation>();
     setup({ getConversation: vi.fn((name) => name === "alpha" ? old.promise : Promise.resolve(conversation(name))) });

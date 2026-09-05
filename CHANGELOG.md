@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file. The project
 
 ## [Unreleased]
 
+### Fixed
+
+- Live Bot replies: publish the user turn before the first generated fragment,
+  preserve streamed text against delayed HTTP acknowledgements and fallback reads,
+  reconnect quiet browser streams, and close obsolete streams on runtime/OAuth
+  replacement. Watched conversations recover missed history and in-flight text
+  from Hermes after a quiet interval, reattaching the live session without
+  resubmitting the prompt. Recovery requests are shared and stop when unwatched.
+
 ### Added
 
 - Authenticated gateway status indicators above Settings in the sidebar, with
