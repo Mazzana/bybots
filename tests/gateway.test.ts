@@ -36,6 +36,28 @@ class FakeSocket extends EventTarget {
 }
 
 describe("HermesGateway", () => {
+  it.each(["oauth", "session"] as const)("allows fifteen seconds by default for the %s connection stage", async (authMode) => {
+    vi.useFakeTimers();
+    const socket = new FakeSocket();
+    const gateway = new HermesGateway({
+      baseUrl: "https://hermes.example.test", token: "fixture-token", authMode,
+      fetcher: vi.fn().mockImplementation(() => new Promise(() => {})),
+      socketFactory: () => socket as unknown as WebSocket
+    });
+    let failure: unknown;
+    const pending = gateway.request("profiles.list").catch((error) => { failure = error; });
+    try {
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(failure).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+      expect(failure).toMatchObject({ message: expect.stringContaining("timed out after 15000 ms") });
+    } finally {
+      gateway.close();
+      vi.useRealTimers();
+    }
+  });
+
   it("archives a profile session through Hermes metadata without deleting it", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ session: { id: "s1", archived: true } }), { status: 200 }));
     const gateway = new HermesGateway({

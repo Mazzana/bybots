@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { FileHermesConnectionStore, HermesConnectionManager, normalizeHermesUrl, type HermesConnectionCredentials, type HermesConnectionStore } from "../server/hermes-connection";
+import { HermesGateway } from "../server/hermes-gateway";
 
 function memoryStore(saved?: HermesConnectionCredentials): HermesConnectionStore & { save: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn> } {
   return {
@@ -28,6 +29,32 @@ function runtimeFactory(created: string[], closed: string[]) {
 }
 
 describe("Hermes connection management", () => {
+  it("allows slow initial health and gateway checks without an eight-second outer cutoff", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((_url, init) => new Promise((resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+      setTimeout(() => resolve(new Response(JSON.stringify({ ok: true, version: "fixture" }))), 9_000);
+    })));
+    const request = vi.spyOn(HermesGateway.prototype, "request").mockImplementation(() => new Promise((resolve) => {
+      setTimeout(() => resolve({ profiles: [] }), 9_000);
+    }));
+    const manager = new HermesConnectionManager({
+      defaultConnection: { baseUrl: "http://127.0.0.1:9120", token: "fixture-token" },
+      store: memoryStore(), createRuntime: runtimeFactory([], [])
+    });
+    try {
+      const pending = expect(manager.testConnection({ baseUrl: "http://127.0.0.1:9120" })).resolves.toMatchObject({ version: "fixture" });
+      await vi.advanceTimersByTimeAsync(18_000);
+      await pending;
+      expect(request).toHaveBeenCalledWith("profiles.list", {}, 15_000);
+    } finally {
+      manager.close();
+      request.mockRestore();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
   it("normalizes supported gateway URLs and rejects embedded credentials", () => {
     expect(normalizeHermesUrl(" https://hermes.example.test/base/ ")).toBe("https://hermes.example.test/base");
     expect(() => normalizeHermesUrl("ftp://hermes.example.test")).toThrow("HTTP or HTTPS");

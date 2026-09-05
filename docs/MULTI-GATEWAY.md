@@ -151,8 +151,9 @@ OAuth transport tests use isolated loopback HTTP/WebSocket endpoints to verify
 recovery after a ticket rejection, fresh single-use tickets after a socket
 disconnect, and refusal of ticket redirects. Unit tests also cover stalled
 headers/bodies, malformed or oversized responses, cancellation and late ticket
-responses. Ticket acquisition has an eight-second deadline (followed by a
-separate eight-second WebSocket opening deadline); ticket HTTP 401/403 errors
+responses. Ticket acquisition has a fifteen-second deadline (followed by a
+separate fifteen-second WebSocket opening deadline). These transport deadlines
+do not limit the time a user spends signing in through the browser. Ticket HTTP 401/403 errors
 show authentication required without exposing the response body. These checks
 do not qualify a real provider's sign-in, browser callback or refresh flow in
 the packaged application.

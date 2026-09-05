@@ -53,11 +53,14 @@ All notable changes to this project will be documented in this file. The project
 
 ### Fixed
 
-- OAuth WebSocket ticket requests now have an eight-second deadline covering
+- OAuth WebSocket ticket requests now have a fifteen-second deadline covering
   headers and body, a bounded response size and no redirects. Closing or
   replacing a gateway cancels ticket acquisition and prevents late sockets.
   Ticket HTTP 401/403 responses show authentication required in the sidebar;
-  network failures remain unavailable. Reconnection obtains a fresh ticket.
+  network failures remain unavailable. WebSocket opening has a separate
+  fifteen-second deadline. Reconnection obtains a fresh ticket.
+  Initial health and authentication HTTP checks also allow fifteen seconds;
+  the initial gateway probe no longer cuts these stages short at eight seconds.
   Isolated HTTP/WebSocket tests cover rejection recovery and redirect refusal.
 - A target socket closing after relay submission now keeps the delivery outcome
   uncertain, including after returning an error to the source or retrying that

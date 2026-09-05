@@ -11,7 +11,7 @@ import { HermesGateway } from "./hermes-gateway";
 type LocalTokenResolver = (baseUrl: string, configuredToken: string) => Promise<string>;
 
 const CONNECTION_FILE_VERSION = 2;
-const DEFAULT_PROBE_TIMEOUT_MS = 8_000;
+const DEFAULT_PROBE_TIMEOUT_MS = 15_000;
 const OAUTH_FLOW_TTL_MS = 10 * 60_000;
 const OAUTH_REFRESH_SKEW_MS = 60_000;
 const OAUTH_REFRESH_RETRY_MS = 60_000;
@@ -172,14 +172,6 @@ export function isSecureHermesUrl(value: string) {
   return url.protocol === "https:" || url.hostname === "localhost" || url.hostname === "::1" || url.hostname.startsWith("127.");
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([
-    promise,
-    new Promise<T>((_resolve, reject) => { timer = setTimeout(() => reject(new Error(message)), timeoutMs); })
-  ]).finally(() => { if (timer) clearTimeout(timer); });
-}
-
 function createDefaultRuntime(connection: HermesConnectionCredentials): HermesRuntime {
   const authMode = connection.authMode ?? "session";
   const gateway = connection.token ? new HermesGateway({ baseUrl: connection.baseUrl, token: connection.token, authMode }) : undefined;
@@ -209,9 +201,10 @@ async function defaultProbe(connection: HermesConnectionCredentials) {
     const health = await response.json() as { ok?: unknown; version?: unknown };
     if (health.ok !== true) throw new Error("Hermes health check did not report ready");
     const version = typeof health.version === "string" && health.version.trim() ? health.version.trim() : "unknown";
+    clearTimeout(timer);
     const gateway = new HermesGateway({ baseUrl: connection.baseUrl, token: connection.token, authMode: connection.authMode });
     try {
-      await withTimeout(gateway.request("profiles.list", {}), DEFAULT_PROBE_TIMEOUT_MS, "Hermes gateway connection timed out");
+      await gateway.request("profiles.list", {}, DEFAULT_PROBE_TIMEOUT_MS);
     } finally {
       gateway.close();
     }
